@@ -1,0 +1,31 @@
+# Local secrets
+.env
+
+# WordPress core (if extracted or bind-mounted into the repo root)
+/wp-admin/
+/wp-includes/
+/index.php
+/license.txt
+/readme.html
+/xmlrpc.php
+/wp-*.php
+
+# wp-content: generated / heavy / machine-local
+wp-content/cache/
+wp-content/upgrade/
+wp-content/upgrade-temp-backup/
+wp-content/backups/
+wp-content/debug.log
+wp-content/db.php
+wp-content/languages/
+wp-content/uploads/*
+!wp-content/uploads/.gitkeep
+
+# Composer / Node (plugin/theme tooling)
+/vendor/
+node_modules/
+
+# Logs and OS junk
+*.log
+.DS_Store
+Thumbs.db
