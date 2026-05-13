@@ -7,7 +7,9 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
+        default-mysql-client \
         git \
+        subversion \
         unzip \
     ; \
     rm -rf /var/lib/apt/lists/*
