@@ -8,6 +8,9 @@
 	convertNoticesToExceptions="true"
 	convertDeprecationsToExceptions="true"
 	>
+	<php>
+		<env name="WP_TESTS_DIR" value="/var/www/html/wp-content/plugins/post-to-convex/tmp/wordpress-tests-lib"/>
+	</php>
 	<testsuites>
 		<testsuite name="testing">
 			<directory prefix="test-" suffix=".php">./tests/</directory>

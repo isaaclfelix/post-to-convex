@@ -96,7 +96,7 @@ The **post-to-convex** plugin uses PHPUnit with the standard WordPress test harn
 5. **Install the WordPress test library and create the test database** — Arguments are: `DB_NAME` `DB_USER` `DB_PASSWORD` `DB_HOST` `WP_VERSION` `SKIP_DB_CREATE`. These match the Compose service `db` and typical credentials from `.env` (adjust if yours differ). Re-run this step when you change WordPress version or database settings.
 
    ```bash
-   ./bin/install-wp-tests.sh wordpress wordpress wordpress db 6.9.4 true
+   TMPDIR=/var/www/html/wp-content/plugins/post-to-convex/tmp ./bin/install-wp-tests.sh wordpress wordpress wordpress db 6.9.4 true
    ```
 
 6. **Run PHPUnit:**
