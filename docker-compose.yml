@@ -40,6 +40,21 @@ services:
     networks:
       - wordpress_net
 
+  phpmyadmin:
+    container_name: phpmyadmin
+    image: phpmyadmin:apache
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${PMA_PORT:-8081}:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    networks:
+      - wordpress_net
+
 volumes:
   db_data:
 
