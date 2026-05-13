@@ -65,10 +65,52 @@ Open `http://localhost:<WP_PORT>` in a browser. With the default in `.env.exampl
 
 On first visit, complete the normal WordPress installation unless you already have a configured `wp-config.php` from a previous run.
 
+## Running unit tests
+
+The **post-to-convex** plugin uses PHPUnit with the standard WordPress test harness. Run everything below from a shell inside the WordPress container (paths assume the repo root is mounted at `/var/www/html` as in `docker-compose.yml`).
+
+1. **Start the stack** — From the repository root (for example in Ubuntu WSL), ensure containers are up:
+
+   ```bash
+   docker compose up -d
+   ```
+
+2. **Open a root shell in the WordPress container** — The test installer may need root to write under `/tmp` and to install dependencies:
+
+   ```bash
+   docker exec -u root -it wp bash
+   ```
+
+3. **Go to the plugin directory:**
+
+   ```bash
+   cd wp-content/plugins/post-to-convex/
+   ```
+
+4. **Install PHP dev dependencies:**
+
+   ```bash
+   composer install
+   ```
+
+5. **Install the WordPress test library and create the test database** — Arguments are: `DB_NAME` `DB_USER` `DB_PASSWORD` `DB_HOST` `WP_VERSION` `SKIP_DB_CREATE`. These match the Compose service `db` and typical credentials from `.env` (adjust if yours differ). Re-run this step when you change WordPress version or database settings.
+
+   ```bash
+   ./bin/install-wp-tests.sh wordpress wordpress wordpress db 6.9.4 true
+   ```
+
+6. **Run PHPUnit:**
+
+   ```bash
+   composer run test
+   ```
+
+For more verbose output you can use `composer run test:verbose`.
+
 ## Troubleshooting
 
 - **Port already in use** — Set a different `WP_PORT` in `.env`, then `docker compose up -d` again.
 - **`docker: command not found` in WSL** — Enable WSL integration for your Ubuntu distro in Docker Desktop, or install the Docker CLI in that distro per Docker’s docs.
 - **Slow edits or odd file behavior** — Prefer the project on the WSL Linux filesystem instead of only `/mnt/c`/OneDrive; see [Windows and WSL](#windows-and-wsl).
 
-Additional plugin or theme tooling (Composer, Node, and so on) may add steps later; they are not part of the Compose stack in this repository yet.
+Plugin development tooling (Composer, PHPUnit) is documented in [Running unit tests](#running-unit-tests).
