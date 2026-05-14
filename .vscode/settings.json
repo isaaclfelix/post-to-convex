@@ -23,5 +23,10 @@
 		"source.fixAll.eslint": "explicit"
 	},
 	"eslint.useFlatConfig": true,
-	"eslint.workingDirectories": [{ "mode": "auto" }]
+	"eslint.workingDirectories": [
+		{
+			"directory": ".",
+			"changeProcessCWD": true
+		}
+	]
 }
