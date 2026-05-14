@@ -1,14 +1,11 @@
 /**
  * Block editor script (enqueued only in the editor).
  */
+import { Button, PanelBody } from '@wordpress/components';
 import domReady from '@wordpress/dom-ready';
 import { PluginSidebar } from '@wordpress/editor';
-import {
-	PanelBody,
-	Button,
-} from '@wordpress/components';
-import { registerPlugin } from '@wordpress/plugins';
 import { __ } from '@wordpress/i18n';
+import { registerPlugin } from '@wordpress/plugins';
 
 function PostToConvexSidebar() {
 	return (
@@ -21,11 +18,11 @@ function PostToConvexSidebar() {
 				<Button variant="primary">{ __( 'Post to Convex' ) }</Button>
 			</PanelBody>
 		</PluginSidebar>
-	)
+	);
 }
 
 domReady( () => {
-	registerPlugin('post-to-convex-sidebar', {
+	registerPlugin( 'post-to-convex-sidebar', {
 		render: PostToConvexSidebar,
-	})
+	} );
 } );
