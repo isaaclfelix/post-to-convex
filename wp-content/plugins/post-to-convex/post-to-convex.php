@@ -19,11 +19,13 @@ define( 'POST_TO_CONVEX_VERSION', '0.1.0' );
 require_once __DIR__ . '/includes/class-secret-store.php';
 require_once __DIR__ . '/includes/class-admin-settings.php';
 require_once __DIR__ . '/includes/class-blocks.php';
+require_once __DIR__ . '/includes/class-rest-api.php';
 
 add_action(
 	'plugins_loaded',
 	static function () {
 		Post_To_Convex_Blocks::init();
+		Post_To_Convex_Rest_Api::init();
 
 		if ( ! is_admin() ) {
 			return;

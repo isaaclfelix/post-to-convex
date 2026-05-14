@@ -13,10 +13,9 @@ defined( 'ABSPATH' ) || exit;
 class Post_To_Convex_Admin_Settings {
 
 	const OPTION_GROUP = 'post_to_convex_settings';
-	const OPTION_URL   = 'post_to_convex_cloud_url';
 
-	/** @var string Same as Post_To_Convex_Secret_Store::OPTION_SECRET. */
-	const OPTION_SECRET = Post_To_Convex_Secret_Store::OPTION_SECRET;
+	const OPTION_URL   = 'post_to_convex_cloud_url';
+	const OPTION_SECRET = 'post_to_convex_secret';
 
 	const PAGE_SLUG = 'post-to-convex-settings';
 
@@ -124,7 +123,7 @@ class Post_To_Convex_Admin_Settings {
 	public function render_field_cloud_url() {
 		$value = (string) get_option( self::OPTION_URL, '' );
 		printf(
-			'<input type="url" class="regular-text" name="%1$s" id="%1$s" value="%2$s" placeholder="https://your-deployment.convex.site" />',
+			'<input type="url" class="regular-text" name="%1$s" id="%1$s" value="%2$s" placeholder="https://your-deployment.convex.site/api/postToConvex/v1/posts" />',
 			esc_attr( self::OPTION_URL ),
 			esc_attr( $value )
 		);

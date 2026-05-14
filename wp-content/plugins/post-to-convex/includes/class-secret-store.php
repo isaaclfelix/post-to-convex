@@ -12,8 +12,6 @@ defined( 'ABSPATH' ) || exit;
  */
 class Post_To_Convex_Secret_Store {
 
-	const OPTION_SECRET = 'post_to_convex_secret';
-
 	private const CIPHER = 'aes-256-gcm';
 
 	/** Prefix for ciphertext blobs written to the options table. */
@@ -128,7 +126,7 @@ class Post_To_Convex_Secret_Store {
 	 * Convenience: decrypted secret from the options table.
 	 */
 	public static function get_plaintext_secret() {
-		return self::decrypt( (string) get_option( self::OPTION_SECRET, '' ) );
+		return self::decrypt( (string) get_option( Post_To_Convex_Admin_Settings::OPTION_SECRET, '' ) );
 	}
 
 	/**
