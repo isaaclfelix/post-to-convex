@@ -18,6 +18,8 @@ class Post_To_Convex_Blocks {
 	public static function init() {
 		$self = new self();
 		add_action( 'init', array( $self, 'register_blocks' ) );
+		add_action( 'init', array( $self, 'register_editor_script' ) );
+		add_action( 'enqueue_block_editor_assets', array( $self, 'enqueue_editor_script' ) );
 	}
 
 	/**
@@ -30,5 +32,38 @@ class Post_To_Convex_Blocks {
 	 */
 	public function register_blocks() {
 		wp_register_block_types_from_metadata_collection( __DIR__ . '/../build', __DIR__ . '/../build/blocks-manifest.php' );
+	}
+
+	/**
+	 * Registers the block-editor-only script built to `build/editor.js`.
+	 */
+	public function register_editor_script() {
+		$plugin_file = dirname( __DIR__ ) . '/post-to-convex.php';
+		$asset_file  = __DIR__ . '/../build/editor.asset.php';
+
+		if ( ! is_readable( $asset_file ) ) {
+			return;
+		}
+
+		$asset = include $asset_file;
+
+		wp_register_script(
+			'post-to-convex-editor',
+			plugins_url( 'build/editor.js', $plugin_file ),
+			$asset['dependencies'],
+			$asset['version'],
+			true
+		);
+	}
+
+	/**
+	 * Enqueues the block-editor-only script.
+	 */
+	public function enqueue_editor_script() {
+		if ( ! wp_script_is( 'post-to-convex-editor', 'registered' ) ) {
+			return;
+		}
+
+		wp_enqueue_script( 'post-to-convex-editor' );
 	}
 }

@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@wordpress/dom-ready':
+        specifier: ^4.45.0
+        version: 4.45.0
       '@wordpress/scripts':
         specifier: ^32.1.0
         version: 32.1.0(@playwright/test@1.60.0)(@types/eslint@9.6.1)(@types/node@25.7.0)(@typescript-eslint/eslint-plugin@8.59.3(@typescript-eslint/parser@8.59.3(eslint@10.3.0)(typescript@6.0.3))(eslint@10.3.0)(typescript@6.0.3))(@typescript-eslint/parser@8.59.3(eslint@10.3.0)(typescript@6.0.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(stylelint-scss@6.14.0(stylelint@16.26.1(typescript@6.0.3)))(type-fest@4.41.0)(typescript@6.0.3)
@@ -1913,6 +1916,10 @@ packages:
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
     peerDependencies:
       webpack: ^5.0.0
+
+  '@wordpress/dom-ready@4.45.0':
+    resolution: {integrity: sha512-0lFImpg9DGXcGCDQePdoU8haz7QYsKOFXUMTpRvi/Te38LFXzgZtOUBQbY8fRBlLxrgrj4FsAIc7bzdLn73wNQ==}
+    engines: {node: '>=18.12.0', npm: '>=8.19.2'}
 
   '@wordpress/e2e-test-utils-playwright@1.45.0':
     resolution: {integrity: sha512-2hqpRI6J8UcDyP1ObSCGP2lcc2VG15AyG/DwnzMdpgIUC/1zNvQwD9eNlyvHAISgnQ8m41aifE0FVtx5BTLuRQ==}
@@ -8844,6 +8851,8 @@ snapshots:
     dependencies:
       json2php: 0.0.7
       webpack: 5.106.2(cssnano@6.1.2(postcss@8.5.14))(postcss@8.5.14)(webpack-cli@5.1.4)
+
+  '@wordpress/dom-ready@4.45.0': {}
 
   '@wordpress/e2e-test-utils-playwright@1.45.0(@playwright/test@1.60.0)(@types/node@25.7.0)':
     dependencies:
