@@ -10,6 +10,7 @@ vendor/
 *.zip
 .phpunit.result.cache
 tmp/
+*.map
 
 # Logs
 logs
