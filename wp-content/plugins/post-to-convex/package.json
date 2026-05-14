@@ -7,9 +7,10 @@
 	"main": "build/index.js",
 	"scripts": {
 		"build": "wp-scripts build --blocks-manifest",
-		"format": "wp-scripts format",
+		"format": "prettier --ignore-path ../../../.prettierignore --write \"src/**/*.{js,cjs,mjs,jsx,ts,tsx,css,scss,json}\" \"package.json\" \"composer.json\"",
+		"format:check": "prettier --ignore-path ../../../.prettierignore --check \"src/**/*.{js,cjs,mjs,jsx,ts,tsx,css,scss,json}\" \"package.json\" \"composer.json\"",
 		"lint:css": "wp-scripts lint-style",
-		"lint:js": "wp-scripts lint-js",
+		"lint:js": "eslint src",
 		"packages-update": "wp-scripts packages-update",
 		"plugin-zip": "wp-scripts plugin-zip",
 		"start": "wp-scripts start --blocks-manifest"
