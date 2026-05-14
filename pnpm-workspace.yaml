@@ -1,0 +1,3 @@
+packages:
+  - 'wp-content/plugins/*'
+  - 'wp-content/themes/*'

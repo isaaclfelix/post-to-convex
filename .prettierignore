@@ -1,0 +1,9 @@
+**/node_modules/**
+**/build/**
+**/dist/**
+**/vendor/**
+**/tmp/**
+**/*.min.js
+pnpm-lock.yaml
+package-lock.json
+yarn.lock

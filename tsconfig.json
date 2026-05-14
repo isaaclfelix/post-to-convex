@@ -1,0 +1,26 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"jsx": "react-jsx",
+		"strict": true,
+		"noEmit": true,
+		"allowJs": true,
+		"checkJs": false,
+		"isolatedModules": true,
+		"skipLibCheck": true,
+		"resolveJsonModule": true
+	},
+	"include": [
+		"types/_tsconfig_entry.ts",
+		"wp-content/**/*.ts",
+		"wp-content/**/*.tsx"
+	],
+	"exclude": [
+		"**/node_modules/**",
+		"**/build/**",
+		"**/tmp/**",
+		"**/vendor/**"
+	]
+}
