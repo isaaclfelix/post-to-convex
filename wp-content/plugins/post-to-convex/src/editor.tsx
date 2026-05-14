@@ -4,10 +4,13 @@
 import { Button, PanelBody } from '@wordpress/components';
 import domReady from '@wordpress/dom-ready';
 import { PluginSidebar } from '@wordpress/editor';
+import { useState } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import { registerPlugin } from '@wordpress/plugins';
 
 function PostToConvexSidebar() {
+	const [ isPosting, setIsPosting ] = useState( false );
+
 	return (
 		<PluginSidebar
 			name="post-to-convex-sidebar"

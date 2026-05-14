@@ -4,6 +4,7 @@
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"jsx": "react-jsx",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
 		"strict": true,
 		"noEmit": true,
 		"allowJs": true,
@@ -12,11 +13,7 @@
 		"skipLibCheck": true,
 		"resolveJsonModule": true
 	},
-	"include": [
-		"types/_tsconfig_entry.ts",
-		"wp-content/**/*.ts",
-		"wp-content/**/*.tsx"
-	],
+	"include": ["wp-content/**/*.ts", "wp-content/**/*.tsx"],
 	"exclude": [
 		"**/node_modules/**",
 		"**/build/**",

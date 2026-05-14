@@ -22,7 +22,7 @@ function withAdditionalEntries( config ) {
 
 			return {
 				...entries,
-				editor: path.resolve( process.cwd(), 'src', 'editor.js' ),
+				editor: path.resolve( process.cwd(), 'src', 'editor.tsx' ),
 			};
 		},
 	};

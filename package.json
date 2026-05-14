@@ -2,9 +2,10 @@
 	"name": "post-to-convex-repo",
 	"private": true,
 	"scripts": {
-		"lint:js": "eslint \"wp-content/plugins/*/src\" \"wp-content/themes/*/src\" \"types\" --no-error-on-unmatched-pattern",
-		"format": "prettier --write \"wp-content/**/*.{js,cjs,mjs,jsx,ts,tsx,css,scss,json,md}\" \"types/**/*.ts\"",
-		"format:check": "prettier --check \"wp-content/**/*.{js,cjs,mjs,jsx,ts,tsx,css,scss,json,md}\" \"types/**/*.ts\""
+		"typecheck": "tsc --noEmit",
+		"lint:js": "eslint \"wp-content/plugins/*/src\" \"wp-content/themes/*/src\" --no-error-on-unmatched-pattern",
+		"format": "prettier --write \"wp-content/**/*.{js,cjs,mjs,jsx,ts,tsx,css,scss,json,md}\"",
+		"format:check": "prettier --check \"wp-content/**/*.{js,cjs,mjs,jsx,ts,tsx,css,scss,json,md}\""
 	},
 	"devDependencies": {
 		"@wordpress/eslint-plugin": "^25.1.0",
