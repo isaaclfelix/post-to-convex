@@ -19,3 +19,11 @@ export const createPostEndpointSchema = z.strictObject( {
 export type CreatePostEndpointSchema = z.infer<
 	typeof createPostEndpointSchema
 >;
+
+export const createPostServerEndpointSchema = z.strictObject( {
+	id: z.number(),
+} );
+
+export type CreatePostServerEndpointSchema = z.infer<
+	typeof createPostServerEndpointSchema
+>;

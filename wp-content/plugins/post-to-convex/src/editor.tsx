@@ -3,46 +3,42 @@
  */
 import apiFetch from '@wordpress/api-fetch';
 import { Button, PanelBody } from '@wordpress/components';
+import { useEntityId } from '@wordpress/core-data';
+import { useSelect } from '@wordpress/data';
 import domReady from '@wordpress/dom-ready';
-import { PluginSidebar } from '@wordpress/editor';
-import { useState } from '@wordpress/element';
+import { PluginSidebar, store as editorStore } from '@wordpress/editor';
+import { useCallback, useState } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import { registerPlugin } from '@wordpress/plugins';
 
 import {
-	type CreatePostEndpointSchema,
-	createPostEndpointSchema,
+	type CreatePostServerEndpointSchema,
+	createPostServerEndpointSchema,
 } from './schemas';
 
 function PostToConvexSidebar() {
 	const [ isPosting, setIsPosting ] = useState< boolean >( false );
 
+	const postType = useSelect(
+		( select ) => select( editorStore ).getCurrentPostType(),
+		[]
+	);
+
+	const postId = useEntityId( 'postType', postType );
+
 	/**
 	 * Handle the post to Convex.
 	 */
-	const handlePost = async () => {
-		console.debug( 'handlePost' );
-		setIsPosting( true );
-
+	const handlePost = useCallback( async () => {
 		try {
-			const payload: CreatePostEndpointSchema = {
-				title: 'Hello, world!',
-				slug: 'hello-world',
-				content: 'Hello, world!',
-				excerpt: 'Hello, world!',
-				type: 'post',
-				status: 'publish',
-				commentStatus: 'open',
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-				originalId: 1,
-				authorId: 1,
-				categoryIds: [ 1 ],
-				tagIds: [ 1 ],
+			setIsPosting( true );
+
+			const payload: CreatePostServerEndpointSchema = {
+				id: Number( postId ),
 			};
 
 			const validatedPayload =
-				createPostEndpointSchema.safeParse( payload );
+				createPostServerEndpointSchema.safeParse( payload );
 
 			if ( ! validatedPayload.success ) {
 				console.debug( validatedPayload.error );
@@ -51,7 +47,7 @@ function PostToConvexSidebar() {
 			}
 
 			const response = await apiFetch( {
-				path: '/post-to-convex/v1/createPost',
+				path: '/post-to-convex/v1/createPostServer',
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -62,10 +58,10 @@ function PostToConvexSidebar() {
 			console.debug( response );
 		} catch ( error ) {
 			console.debug( error );
+		} finally {
+			setIsPosting( false );
 		}
-
-		setIsPosting( false );
-	};
+	}, [ postId ] );
 
 	return (
 		<PluginSidebar
