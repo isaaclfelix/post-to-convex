@@ -16,11 +16,11 @@ defined( 'ABSPATH' ) || exit;
 
 define( 'POST_TO_CONVEX_VERSION', '0.1.0' );
 
-require_once __DIR__ . '/includes/class-secret-store.php';
-require_once __DIR__ . '/includes/class-admin-settings.php';
-require_once __DIR__ . '/includes/class-blocks.php';
-require_once __DIR__ . '/includes/class-post-meta.php';
-require_once __DIR__ . '/includes/class-rest-api.php';
+require_once __DIR__ . '/includes/class-post-to-convex-secret-store.php';
+require_once __DIR__ . '/includes/class-post-to-convex-admin-settings.php';
+require_once __DIR__ . '/includes/class-post-to-convex-blocks.php';
+require_once __DIR__ . '/includes/class-post-to-convex-post-meta.php';
+require_once __DIR__ . '/includes/class-post-to-convex-rest-api.php';
 
 add_action(
 	'plugins_loaded',
