@@ -5,13 +5,30 @@
 		"typecheck": "tsc --noEmit",
 		"lint:js": "eslint \"wp-content/plugins/*/src\" \"wp-content/themes/*/src\" --no-error-on-unmatched-pattern",
 		"format": "prettier --write \"wp-content/**/*.{js,cjs,mjs,jsx,ts,tsx,css,scss,json,md}\"",
-		"format:check": "prettier --check \"wp-content/**/*.{js,cjs,mjs,jsx,ts,tsx,css,scss,json,md}\""
+		"format:check": "prettier --check \"wp-content/**/*.{js,cjs,mjs,jsx,ts,tsx,css,scss,json,md}\"",
+		"prepare": "husky"
+	},
+	"lint-staged": {
+		"wp-content/**/*.{js,mjs,jsx,ts,tsx}": [
+			"eslint --fix",
+			"prettier --write"
+		],
+		"wp-content/**/*.{json,md,css,scss}": [
+			"prettier --write"
+		],
+		"*.{json,md}": [
+			"prettier --write"
+		]
 	},
 	"devDependencies": {
+		"@commitlint/cli": "^20.5.3",
+		"@commitlint/config-conventional": "^20.5.3",
 		"@wordpress/eslint-plugin": "^25.1.0",
 		"@wordpress/prettier-config": "^4.45.0",
 		"eslint": "^10.0.0",
 		"eslint-plugin-simple-import-sort": "^12.1.1",
+		"husky": "^9.1.7",
+		"lint-staged": "^17.0.2",
 		"prettier": "npm:wp-prettier@3.0.3",
 		"react": "^18.3.1",
 		"typescript": "^5.9.3",

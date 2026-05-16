@@ -1,15 +1,17 @@
 # post-to-convex
 
+Contributors: see [CONTRIBUTING.md](./CONTRIBUTING.md) for Git branch naming, [Commitlint](https://github.com/conventional-changelog/commitlint) (conventional commits), and Husky hooks.
+
 Local WordPress runs in Docker (MySQL 8 + PHP 8.2 Apache) with the repo root bind-mounted into the container so file changes apply immediately.
 
 ## Prerequisites
 
-- [Docker Desktop for Windows](https://docs.docker.com/desktop/setup/install/windows-install/) using the **WSL 2** backend.
-- In Docker Desktop: **Settings → Resources → WSL integration** — enable integration for your **Ubuntu** distro.
-- An **Ubuntu** WSL distribution where you will run `docker` and `docker compose` (this README assumes that workflow).
-- **Windows PHP 8.2** on `PATH` for editor PHPCS/PHPCBF (`php -v` in PowerShell should report 8.2.x). New contributors: [PHP 8.2 for Windows](https://windows.php.net/download/) or `winget install -e --id PHP.PHP.8.2`.
-- Recommended **Cursor/VS Code extensions** (install manually from workspace prompts): [PHP Sniffer](https://marketplace.visualstudio.com/items?itemName=wongjn.php-sniffer), [PHP Debug](https://marketplace.visualstudio.com/items?itemName=xdebug.php-debug) by Xdebug, and optionally Intelephense.
-- Optional: `git` in WSL if you work from a clone.
+-   [Docker Desktop for Windows](https://docs.docker.com/desktop/setup/install/windows-install/) using the **WSL 2** backend.
+-   In Docker Desktop: **Settings → Resources → WSL integration** — enable integration for your **Ubuntu** distro.
+-   An **Ubuntu** WSL distribution where you will run `docker` and `docker compose` (this README assumes that workflow).
+-   **Windows PHP 8.2** on `PATH` for editor PHPCS/PHPCBF (`php -v` in PowerShell should report 8.2.x). New contributors: [PHP 8.2 for Windows](https://windows.php.net/download/) or `winget install -e --id PHP.PHP.8.2`.
+-   Recommended **Cursor/VS Code extensions** (install manually from workspace prompts): [PHP Sniffer](https://marketplace.visualstudio.com/items?itemName=wongjn.php-sniffer), [PHP Debug](https://marketplace.visualstudio.com/items?itemName=xdebug.php-debug) by Xdebug, and optionally Intelephense.
+-   Optional: `git` in WSL if you work from a clone.
 
 ## Windows and WSL
 
@@ -27,9 +29,9 @@ Bind mounts from `/mnt/c` (including OneDrive folders) can be slower and sometim
 
 1. Copy the example environment file and edit secrets:
 
-   ```bash
-   cp .env.example .env
-   ```
+    ```bash
+    cp .env.example .env
+    ```
 
 2. Edit `.env` and set at least `MYSQL_PASSWORD` and `MYSQL_ROOT_PASSWORD` to strong values. Optionally change `WP_PORT` (host port for WordPress) or `WORDPRESS_TABLE_PREFIX`. Keep `MYSQL_*` values consistent with what WordPress expects; they are wired in `docker-compose.yml`. See comments in `.env.example` for details.
 
@@ -73,24 +75,24 @@ WordPress **6.9.4** on **PHP 8.2** (Docker image and Windows PHP for the editor)
 
 1. **Install tooling** (from repo root in WSL, with containers running):
 
-   ```bash
-   docker compose up -d --build
-   docker compose exec -u root -w /var/www/html wordpress composer install
-   ```
+    ```bash
+    docker compose up -d --build
+    docker compose exec -u root -w /var/www/html wordpress composer install
+    ```
 
-   **Composer runs only inside the WordPress container** (it is included in the [`Dockerfile`](Dockerfile)). Do not install Composer on Windows. Use **`-u root`** so Composer can write `vendor/` on the bind-mounted repo (the container process otherwise runs as `www-data`). On Windows, PHP Sniffer uses `phpSniffer.executablesFolder: "bin"` — it invokes `phpcs` / `phpcbf` in that folder and Windows resolves [`bin/phpcs.bat`](bin/phpcs.bat) and [`bin/phpcbf.bat`](bin/phpcbf.bat), which call PHP 8.2 to run the Linux-installed `vendor/bin` scripts.
+    **Composer runs only inside the WordPress container** (it is included in the [`Dockerfile`](Dockerfile)). Do not install Composer on Windows. Use **`-u root`** so Composer can write `vendor/` on the bind-mounted repo (the container process otherwise runs as `www-data`). On Windows, PHP Sniffer uses `phpSniffer.executablesFolder: "bin"` — it invokes `phpcs` / `phpcbf` in that folder and Windows resolves [`bin/phpcs.bat`](bin/phpcs.bat) and [`bin/phpcbf.bat`](bin/phpcbf.bat), which call PHP 8.2 to run the Linux-installed `vendor/bin` scripts.
 
-   Plugin `composer install` under `wp-content/plugins/post-to-convex/` is still only for **PHPUnit** (also via Docker, as root — see [Running unit tests](#running-unit-tests)).
+    Plugin `composer install` under `wp-content/plugins/post-to-convex/` is still only for **PHPUnit** (also via Docker, as root — see [Running unit tests](#running-unit-tests)).
 
 2. **Lint or fix from WSL**:
 
-   ```bash
-   chmod +x bin/php-lint.sh   # first time only
-   ./bin/php-lint.sh
-   ./bin/php-lint.sh --fix
-   ```
+    ```bash
+    chmod +x bin/php-lint.sh   # first time only
+    ./bin/php-lint.sh
+    ./bin/php-lint.sh --fix
+    ```
 
-   Or inside the container: `composer run lint:php` / `composer run lint:php:fix` with `-w /var/www/html`.
+    Or inside the container: `composer run lint:php` / `composer run lint:php:fix` with `-w /var/www/html`.
 
 3. **Editor (Windows)**: With PHP 8.2 on `PATH` and **PHP Sniffer** installed (no Windows Composer), open a `.php` file — diagnostics and format-on-save use `.vscode/settings.json`, `bin/phpcs.bat` / `bin/phpcbf.bat`, and root `vendor/` from step 1 in Docker.
 
@@ -104,17 +106,17 @@ Xdebug runs in the **WordPress container** (PHP 8.2), not on Windows PHP. The ID
 
 1. Rebuild after pulling Dockerfile changes:
 
-   ```bash
-   docker compose up -d --build
-   ```
+    ```bash
+    docker compose up -d --build
+    ```
 
 2. Verify Xdebug in the container:
 
-   ```bash
-   docker compose exec wordpress php -i | grep xdebug.mode
-   ```
+    ```bash
+    docker compose exec wordpress php -i | grep xdebug.mode
+    ```
 
-   Expect `xdebug.mode => debug`.
+    Expect `xdebug.mode => debug`.
 
 3. In Cursor/VS Code: start **Listen for Xdebug** (`.vscode/launch.json`).
 
@@ -130,46 +132,46 @@ The **post-to-convex** plugin uses PHPUnit with the standard WordPress test harn
 
 1. **Start the stack** — From the repository root (for example in Ubuntu WSL), ensure containers are up:
 
-   ```bash
-   docker compose up -d
-   ```
+    ```bash
+    docker compose up -d
+    ```
 
 2. **Open a root shell in the WordPress container** — The test installer may need root to write under `/tmp` and to install dependencies:
 
-   ```bash
-   docker exec -u root -it wp bash
-   ```
+    ```bash
+    docker exec -u root -it wp bash
+    ```
 
 3. **Go to the plugin directory:**
 
-   ```bash
-   cd wp-content/plugins/post-to-convex/
-   ```
+    ```bash
+    cd wp-content/plugins/post-to-convex/
+    ```
 
 4. **Install PHP dev dependencies:**
 
-   ```bash
-   composer install
-   ```
+    ```bash
+    composer install
+    ```
 
 5. **Install the WordPress test library and create the test database** — Arguments are: `DB_NAME` `DB_USER` `DB_PASSWORD` `DB_HOST` `WP_VERSION` `SKIP_DB_CREATE`. These match the Compose service `db` and typical credentials from `.env` (adjust if yours differ). Re-run this step when you change WordPress version or database settings.
 
-   ```bash
-   TMPDIR=/var/www/html/wp-content/plugins/post-to-convex/tmp ./bin/install-wp-tests.sh wordpress wordpress wordpress db 6.9.4 true
-   ```
+    ```bash
+    TMPDIR=/var/www/html/wp-content/plugins/post-to-convex/tmp ./bin/install-wp-tests.sh wordpress wordpress wordpress db 6.9.4 true
+    ```
 
 6. **Run PHPUnit:**
 
-   ```bash
-   composer run test
-   ```
+    ```bash
+    composer run test
+    ```
 
 For more verbose output you can use `composer run test:verbose`.
 
 ## Troubleshooting
 
-- **Port already in use** — Set a different `WP_PORT` in `.env`, then `docker compose up -d` again.
-- **`docker: command not found` in WSL** — Enable WSL integration for your Ubuntu distro in Docker Desktop, or install the Docker CLI in that distro per Docker’s docs.
-- **Slow edits or odd file behavior** — Prefer the project on the WSL Linux filesystem instead of only `/mnt/c`/OneDrive; see [Windows and WSL](#windows-and-wsl).
+-   **Port already in use** — Set a different `WP_PORT` in `.env`, then `docker compose up -d` again.
+-   **`docker: command not found` in WSL** — Enable WSL integration for your Ubuntu distro in Docker Desktop, or install the Docker CLI in that distro per Docker’s docs.
+-   **Slow edits or odd file behavior** — Prefer the project on the WSL Linux filesystem instead of only `/mnt/c`/OneDrive; see [Windows and WSL](#windows-and-wsl).
 
 Plugin development tooling: [PHP coding standards](#php-coding-standards), [Xdebug debugging](#xdebug-debugging), and [Running unit tests](#running-unit-tests).

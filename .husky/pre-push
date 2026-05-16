@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+branch=$(git rev-parse --abbrev-ref HEAD)
+
+case "$branch" in
+main|master|develop|staging) exit 0 ;;
+esac
+
+if echo "$branch" | grep -Eq '^(feat|fix|docs|chore|refactor|test|ci|perf|build|style|revert)/[a-z0-9]+(-[a-z0-9]+)*$'; then
+	exit 0
+fi
+
+echo "husky - Invalid branch name: $branch"
+echo "See CONTRIBUTING.md for the branch naming convention."
+exit 1
