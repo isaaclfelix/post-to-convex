@@ -20,6 +20,11 @@ RUN set -eux; \
     curl -fsSL -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar; \
     chmod +x /usr/local/bin/wp
 
+RUN pecl install xdebug \
+    && docker-php-ext-enable xdebug
+
+COPY docker/php/conf.d/xdebug.ini /usr/local/etc/php/conf.d/99-xdebug-settings.ini
+
 # Non-root cannot bind to port 80; move Apache to 8080 and allow www-data to own runtime dirs.
 RUN set -eux; \
     sed -ri 's/^Listen 80$/Listen 8080/' /etc/apache2/ports.conf; \

@@ -19,6 +19,13 @@
 	"[jsonc]": {
 		"editor.defaultFormatter": "esbenp.prettier-vscode"
 	},
+	"[php]": {
+		"editor.defaultFormatter": "wongjn.php-sniffer",
+		"editor.formatOnSave": true
+	},
+	"phpSniffer.standard": ".phpcs.xml.dist",
+	"phpSniffer.executablesFolder": "vendor/bin",
+	"phpSniffer.autoDetect": false,
 	"editor.codeActionsOnSave": {
 		"source.fixAll.eslint": "explicit"
 	},

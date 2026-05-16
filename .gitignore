@@ -33,6 +33,7 @@ wp-content/index.php
 
 # Composer / Node (plugin/theme tooling)
 /vendor/
+phpcs.xml
 node_modules/
 
 # Logs and OS junk
