@@ -4,6 +4,7 @@
 		"esbenp.prettier-vscode",
 		"wongjn.php-sniffer",
 		"xdebug.php-debug",
-		"bmewburn.vscode-intelephense-client"
+		"bmewburn.vscode-intelephense-client",
+		"editorconfig.editorconfig"
 	]
 }
