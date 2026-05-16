@@ -81,22 +81,40 @@ class Post_To_Convex_Rest_Api {
 		$body = $request->get_json_params();
 
 		if ( ! is_array( $body ) ) {
-			return new WP_REST_Response( array( 'message' => $request_error_message, 'error' => __( 'Request body must be a JSON object', 'post-to-convex' ) ), 400 );
+			return new WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'Request body must be a JSON object', 'post-to-convex' ),
+				),
+				400
+			);
 		}
 
 		$api_url = get_option( Post_To_Convex_Admin_Settings::OPTION_URL );
 
 		if ( ! $api_url ) {
-			return new WP_REST_Response( array( 'message' => $request_error_message, 'error' => __( 'API URL not found', 'post-to-convex' ) ), 500 );
+			return new WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'API URL not found', 'post-to-convex' ),
+				),
+				500
+			);
 		}
 
 		$api_secret = Post_To_Convex_Secret_Store::get_plaintext_secret();
 
 		if ( ! $api_secret ) {
-			return new WP_REST_Response( array( 'message' => $request_error_message, 'error' => __( 'Secret not found', 'post-to-convex' ) ), 500 );
+			return new WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'Secret not found', 'post-to-convex' ),
+				),
+				500
+			);
 		}
 
-		$post_id = intval( $body['id'] );
+		$post_id   = intval( $body['id'] );
 		$is_update = boolval( $body['isUpdate'] );
 
 		global $wpdb;
@@ -104,7 +122,13 @@ class Post_To_Convex_Rest_Api {
 		$post = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $wpdb->posts WHERE ID = %d", $post_id ) );
 
 		if ( ! $post ) {
-			return new WP_REST_Response( array( 'message' => $request_error_message, 'error' => __( 'Post not found', 'post-to-convex' ) ), 404 );
+			return new WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'Post not found', 'post-to-convex' ),
+				),
+				404
+			);
 		}
 
 		$convex_request_headers = array(
@@ -145,22 +169,46 @@ class Post_To_Convex_Rest_Api {
 		if ( is_wp_error( $convex_request ) ) {
 			$error_message = $convex_request->get_error_message();
 
-			return new WP_REST_Response( array( 'message' => $request_error_message, 'error' => $error_message ), $response_code );
+			return new WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => $error_message,
+				),
+				$response_code
+			);
 		}
 
 		$response_body = json_decode( wp_remote_retrieve_body( $convex_request ), true );
 
-		if ( $response_code !== 200 ) {
-			return new WP_REST_Response( array( 'message' => __( 'Failed to create post', 'post-to-convex' ), 'error' => $response_body['error'] ), $response_code );
+		if ( 200 !== $response_code ) {
+			return new WP_REST_Response(
+				array(
+					'message' => __( 'Failed to create post', 'post-to-convex' ),
+					'error'   => $response_body['error'],
+				),
+				$response_code
+			);
 		}
 
 		if ( ! $is_update ) {
 			update_post_meta( $post_id, Post_To_Convex_Post_Meta::REMOTE_ID_META_KEY, $response_body['id'] );
 
-			return new WP_REST_Response( array( 'message' => __( 'Post created', 'post-to-convex' ), 'data' => $response_body ), 200 );
+			return new WP_REST_Response(
+				array(
+					'message' => __( 'Post created', 'post-to-convex' ),
+					'data'    => $response_body,
+				),
+				200
+			);
 		}
 
-		return new WP_REST_Response( array( 'message' => __( 'Post updated', 'post-to-convex' ), 'data' => $response_body ), 200 );
+		return new WP_REST_Response(
+			array(
+				'message' => __( 'Post updated', 'post-to-convex' ),
+				'data'    => $response_body,
+			),
+			200
+		);
 	}
 
 	/**
@@ -175,19 +223,37 @@ class Post_To_Convex_Rest_Api {
 		$body = $request->get_json_params();
 
 		if ( ! is_array( $body ) ) {
-			return new WP_REST_Response( array( 'message' => $request_error_message, 'error' => __( 'Request body must be a JSON object', 'post-to-convex' ) ), 400 );
+			return new WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'Request body must be a JSON object', 'post-to-convex' ),
+				),
+				400
+			);
 		}
 
 		$api_url = get_option( Post_To_Convex_Admin_Settings::OPTION_URL );
 
 		if ( ! $api_url ) {
-			return new WP_REST_Response( array( 'message' => $request_error_message, 'error' => __( 'API URL not found', 'post-to-convex' ) ), 500 );
+			return new WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'API URL not found', 'post-to-convex' ),
+				),
+				500
+			);
 		}
 
 		$api_secret = Post_To_Convex_Secret_Store::get_plaintext_secret();
 
 		if ( ! $api_secret ) {
-			return new WP_REST_Response( array( 'message' => $request_error_message, 'error' => __( 'Secret not found', 'post-to-convex' ) ), 500 );
+			return new WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'Secret not found', 'post-to-convex' ),
+				),
+				500
+			);
 		}
 
 		$post_id = intval( $body['id'] );
@@ -197,13 +263,25 @@ class Post_To_Convex_Rest_Api {
 		$post = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $wpdb->posts WHERE ID = %d", $post_id ) );
 
 		if ( ! $post ) {
-			return new WP_REST_Response( array( 'message' => $request_error_message, 'error' => __( 'Post not found', 'post-to-convex' ) ), 404 );
+			return new WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'Post not found', 'post-to-convex' ),
+				),
+				404
+			);
 		}
 
 		$remote_id = get_post_meta( $post_id, Post_To_Convex_Post_Meta::REMOTE_ID_META_KEY, true );
 
 		if ( ! $remote_id ) {
-			return new WP_REST_Response( array( 'message' => $request_error_message, 'error' => __( 'Remote ID not found', 'post-to-convex' ) ), 404 );
+			return new WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'Remote ID not found', 'post-to-convex' ),
+				),
+				404
+			);
 		}
 
 		$convex_request_headers = array(
@@ -229,17 +307,35 @@ class Post_To_Convex_Rest_Api {
 		if ( is_wp_error( $convex_request ) ) {
 			$error_message = $convex_request->get_error_message();
 
-			return new WP_REST_Response( array( 'message' => $request_error_message, 'error' => $error_message ), $response_code );
+			return new WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => $error_message,
+				),
+				$response_code
+			);
 		}
 
 		$response_body = json_decode( wp_remote_retrieve_body( $convex_request ), true );
 
-		if ( $response_code !== 200 ) {
-			return new WP_REST_Response( array( 'message' => __( 'Failed to remove post', 'post-to-convex' ), 'error' => $response_body['error'] ), $response_code );
+		if ( 200 !== $response_code ) {
+			return new WP_REST_Response(
+				array(
+					'message' => __( 'Failed to remove post', 'post-to-convex' ),
+					'error'   => $response_body['error'],
+				),
+				$response_code
+			);
 		}
 
 		delete_post_meta( $post_id, Post_To_Convex_Post_Meta::REMOTE_ID_META_KEY );
 
-		return new WP_REST_Response( array( 'message' => __( 'Post removed', 'post-to-convex' ), 'data' => $response_body ), 200 );
+		return new WP_REST_Response(
+			array(
+				'message' => __( 'Post removed', 'post-to-convex' ),
+				'data'    => $response_body,
+			),
+			200
+		);
 	}
 }

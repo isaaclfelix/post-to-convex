@@ -38,7 +38,7 @@ class Post_To_Convex_Blocks {
 	 * Registers the block-editor-only script built to `build/editor.js`.
 	 */
 	public function register_editor_assets() {
-		$asset_file  = __DIR__ . '/../build/editor.asset.php';
+		$asset_file = __DIR__ . '/../build/editor.asset.php';
 
 		if ( ! is_readable( $asset_file ) ) {
 			return;

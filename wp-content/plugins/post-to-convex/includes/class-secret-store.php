@@ -68,7 +68,7 @@ class Post_To_Convex_Secret_Store {
 			return '';
 		}
 
-		return self::STORED_PREFIX . base64_encode( $iv . $tag . $ciphertext );
+		return self::STORED_PREFIX . base64_encode( $iv . $tag . $ciphertext ); // phpcs:ignore
 	}
 
 	/**
@@ -101,7 +101,7 @@ class Post_To_Convex_Secret_Store {
 			return '';
 		}
 
-		$binary = base64_decode( substr( $stored, strlen( self::STORED_PREFIX ) ), true );
+		$binary = base64_decode( substr( $stored, strlen( self::STORED_PREFIX ) ), true ); // phpcs:ignore
 		if ( false === $binary || strlen( $binary ) < $iv_length + 16 + 1 ) {
 			return '';
 		}
