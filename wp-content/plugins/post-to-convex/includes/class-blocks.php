@@ -18,8 +18,8 @@ class Post_To_Convex_Blocks {
 	public static function init() {
 		$self = new self();
 		add_action( 'init', array( $self, 'register_blocks' ) );
-		add_action( 'init', array( $self, 'register_editor_script' ) );
-		add_action( 'enqueue_block_editor_assets', array( $self, 'enqueue_editor_script' ) );
+		add_action( 'init', array( $self, 'register_editor_assets' ) );
+		add_action( 'enqueue_block_editor_assets', array( $self, 'enqueue_editor_assets' ) );
 	}
 
 	/**
@@ -37,15 +37,23 @@ class Post_To_Convex_Blocks {
 	/**
 	 * Registers the block-editor-only script built to `build/editor.js`.
 	 */
-	public function register_editor_script() {
-		$plugin_file = dirname( __DIR__ ) . '/post-to-convex.php';
+	public function register_editor_assets() {
 		$asset_file  = __DIR__ . '/../build/editor.asset.php';
 
 		if ( ! is_readable( $asset_file ) ) {
 			return;
 		}
 
+		$plugin_file = dirname( __DIR__ ) . '/post-to-convex.php';
+
 		$asset = include $asset_file;
+
+		wp_register_style(
+			'post-to-convex-editor',
+			plugins_url( 'build/editor.css', $plugin_file ),
+			array(),
+			$asset['version']
+		);
 
 		wp_register_script(
 			'post-to-convex-editor',
@@ -54,16 +62,26 @@ class Post_To_Convex_Blocks {
 			$asset['version'],
 			true
 		);
+
+		wp_localize_script(
+			'post-to-convex-editor',
+			'postToConvexEditor',
+			array(
+				'remoteIdMetaKey' => Post_To_Convex_Post_Meta::REMOTE_ID_META_KEY,
+			)
+		);
 	}
 
 	/**
-	 * Enqueues the block-editor-only script.
+	 * Enqueues the block-editor-only assets.
 	 */
-	public function enqueue_editor_script() {
-		if ( ! wp_script_is( 'post-to-convex-editor', 'registered' ) ) {
-			return;
+	public function enqueue_editor_assets() {
+		if ( wp_style_is( 'post-to-convex-editor', 'registered' ) ) {
+			wp_enqueue_style( 'post-to-convex-editor' );
 		}
 
-		wp_enqueue_script( 'post-to-convex-editor' );
+		if ( wp_script_is( 'post-to-convex-editor', 'registered' ) ) {
+			wp_enqueue_script( 'post-to-convex-editor' );
+		}
 	}
 }
