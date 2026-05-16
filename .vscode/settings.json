@@ -24,7 +24,7 @@
 		"editor.formatOnSave": true
 	},
 	"phpSniffer.standard": ".phpcs.xml.dist",
-	"phpSniffer.executablesFolder": "vendor/bin",
+	"phpSniffer.executablesFolder": "bin",
 	"phpSniffer.autoDetect": false,
 	"editor.codeActionsOnSave": {
 		"source.fixAll.eslint": "explicit"

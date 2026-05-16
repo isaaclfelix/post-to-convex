@@ -78,7 +78,7 @@ WordPress **6.9.4** on **PHP 8.2** (Docker image and Windows PHP for the editor)
    docker compose exec -u root -w /var/www/html wordpress composer install
    ```
 
-   **Composer runs only inside the WordPress container** (it is included in the [`Dockerfile`](Dockerfile)). Do not install Composer on Windows. Use **`-u root`** so Composer can write `vendor/` on the bind-mounted repo (the container process otherwise runs as `www-data`). Windows PHP + PHP Sniffer then execute `vendor/bin/phpcs` and `phpcbf` locally.
+   **Composer runs only inside the WordPress container** (it is included in the [`Dockerfile`](Dockerfile)). Do not install Composer on Windows. Use **`-u root`** so Composer can write `vendor/` on the bind-mounted repo (the container process otherwise runs as `www-data`). On Windows, PHP Sniffer uses `phpSniffer.executablesFolder: "bin"` — it invokes `phpcs` / `phpcbf` in that folder and Windows resolves [`bin/phpcs.bat`](bin/phpcs.bat) and [`bin/phpcbf.bat`](bin/phpcbf.bat), which call PHP 8.2 to run the Linux-installed `vendor/bin` scripts.
 
    Plugin `composer install` under `wp-content/plugins/post-to-convex/` is still only for **PHPUnit** (also via Docker, as root — see [Running unit tests](#running-unit-tests)).
 
@@ -92,9 +92,11 @@ WordPress **6.9.4** on **PHP 8.2** (Docker image and Windows PHP for the editor)
 
    Or inside the container: `composer run lint:php` / `composer run lint:php:fix` with `-w /var/www/html`.
 
-3. **Editor (Windows)**: With PHP 8.2 and **PHP Sniffer** installed (no Windows Composer), open a `.php` file — diagnostics and format-on-save use `.vscode/settings.json` and root `vendor/bin` created by step 1 in Docker.
+3. **Editor (Windows)**: With PHP 8.2 on `PATH` and **PHP Sniffer** installed (no Windows Composer), open a `.php` file — diagnostics and format-on-save use `.vscode/settings.json`, `bin/phpcs.bat` / `bin/phpcbf.bat`, and root `vendor/` from step 1 in Docker.
 
 Configuration: [`.phpcs.xml.dist`](.phpcs.xml.dist). Local overrides: copy to `phpcs.xml` (gitignored).
+
+**Note:** Do not use a `/wp-*.php` exclude in PHPCS on Windows — it matches every path under `wp-content\…\.php` and silently skips your plugin. This repo lists root WordPress PHP entrypoints explicitly instead.
 
 ## Xdebug debugging
 
