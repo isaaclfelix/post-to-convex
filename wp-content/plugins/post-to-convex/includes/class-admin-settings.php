@@ -14,7 +14,7 @@ class Post_To_Convex_Admin_Settings {
 
 	const OPTION_GROUP = 'post_to_convex_settings';
 
-	const OPTION_URL   = 'post_to_convex_cloud_url';
+	const OPTION_URL    = 'post_to_convex_cloud_url';
 	const OPTION_SECRET = 'post_to_convex_secret';
 
 	const PAGE_SLUG = 'post-to-convex-settings';
