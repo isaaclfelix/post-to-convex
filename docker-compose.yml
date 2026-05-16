@@ -1,65 +1,68 @@
 services:
-  db:
-    container_name: db
-    image: mysql:8.0
-    restart: unless-stopped
-    environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-    volumes:
-      - db_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    networks:
-      - wordpress_net
+    db:
+        container_name: db
+        image: mysql:8.0
+        restart: unless-stopped
+        environment:
+            MYSQL_DATABASE: ${MYSQL_DATABASE}
+            MYSQL_USER: ${MYSQL_USER}
+            MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+        volumes:
+            - db_data:/var/lib/mysql
+        healthcheck:
+            test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+            interval: 5s
+            timeout: 5s
+            retries: 10
+        networks:
+            - wordpress_net
 
-  wordpress:
-    container_name: wp
-    build:
-      context: .
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    ports:
-      - "${WP_PORT:-8080}:8080"
-    environment:
-      WORDPRESS_DB_HOST: db:3306
-      WORDPRESS_DB_USER: ${MYSQL_USER}
-      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
-      WORDPRESS_DB_NAME: ${MYSQL_DATABASE}
-      WORDPRESS_TABLE_PREFIX: ${WORDPRESS_TABLE_PREFIX:-wp_}
-    volumes:
-      - ./:/var/www/html
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - wordpress_net
+    wordpress:
+        container_name: wp
+        build:
+            context: .
+            dockerfile: Dockerfile
+        restart: unless-stopped
+        depends_on:
+            db:
+                condition: service_healthy
+        ports:
+            - '${WP_PORT:-8080}:8080'
+        environment:
+            WORDPRESS_DB_HOST: db:3306
+            WORDPRESS_DB_USER: ${MYSQL_USER}
+            WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+            WORDPRESS_DB_NAME: ${MYSQL_DATABASE}
+            WORDPRESS_TABLE_PREFIX: ${WORDPRESS_TABLE_PREFIX:-wp_}
+        volumes:
+            - ./:/var/www/html
+            # Keep host pnpm/node_modules off the bind mount; run Node tooling on the host only.
+            - /var/www/html/node_modules
+            - /var/www/html/wp-content/plugins/post-to-convex/node_modules
+        extra_hosts:
+            - 'host.docker.internal:host-gateway'
+        networks:
+            - wordpress_net
 
-  phpmyadmin:
-    container_name: phpmyadmin
-    image: phpmyadmin:apache
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    ports:
-      - "${PMA_PORT:-8081}:80"
-    environment:
-      PMA_HOST: db
-      PMA_PORT: 3306
-    networks:
-      - wordpress_net
+    phpmyadmin:
+        container_name: phpmyadmin
+        image: phpmyadmin:apache
+        restart: unless-stopped
+        depends_on:
+            db:
+                condition: service_healthy
+        ports:
+            - '${PMA_PORT:-8081}:80'
+        environment:
+            PMA_HOST: db
+            PMA_PORT: 3306
+        networks:
+            - wordpress_net
 
 volumes:
-  db_data:
+    db_data:
 
 networks:
-  wordpress_net:
-    driver: bridge
+    wordpress_net:
+        driver: bridge

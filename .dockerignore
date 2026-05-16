@@ -1,0 +1,4 @@
+# Node / pnpm (install and run on the host, not in the WordPress container)
+node_modules
+**/node_modules
+wp-content/plugins/post-to-convex/node_modules
