@@ -6,16 +6,128 @@ Local WordPress runs in Docker (MySQL 8 + PHP 8.2 Apache) with the repo root bin
 
 ## Prerequisites
 
--   [Docker Desktop for Windows](https://docs.docker.com/desktop/setup/install/windows-install/) using the **WSL 2** backend.
--   In Docker Desktop: **Settings → Resources → WSL integration** — enable integration for your **Ubuntu** distro.
--   An **Ubuntu** WSL distribution where you will run `docker` and `docker compose` (this README assumes that workflow).
+-   **Ubuntu on WSL 2** with the **Docker Engine** and **Docker Compose plugin** installed inside that distro (see [WSL and Docker setup](#wsl-and-docker-setup-without-docker-desktop) below). Do **not** use Docker Desktop for this project.
 -   **Windows PHP 8.2** on `PATH` for editor PHPCS/PHPCBF (`php -v` in PowerShell should report 8.2.x). New contributors: [PHP 8.2 for Windows](https://windows.php.net/download/) or `winget install -e --id PHP.PHP.8.2`.
 -   Recommended **Cursor/VS Code extensions** (install manually from workspace prompts): [PHP Sniffer](https://marketplace.visualstudio.com/items?itemName=wongjn.php-sniffer), [PHP Debug](https://marketplace.visualstudio.com/items?itemName=xdebug.php-debug) by Xdebug, and optionally Intelephense.
 -   Optional: `git` in WSL if you work from a clone.
 
+## WSL and Docker setup (without Docker Desktop)
+
+This project expects you to run `docker` and `docker compose` from an **Ubuntu WSL 2** shell with the Docker daemon running **inside that distro**.
+
+We do **not** recommend [Docker Desktop for Windows](https://docs.docker.com/desktop/setup/install/windows-install/). In practice it is often slower (especially with bind mounts from `/mnt/c` or OneDrive), uses more RAM and CPU in the background, and its WSL integration, file sharing, and resource limits are easy to misconfigure. Installing the Docker CLI and Engine directly in Ubuntu WSL is simpler, faster for day-to-day development, and matches how this README is written.
+
+### 1. Enable Windows optional features
+
+Run **PowerShell as Administrator** and enable the components WSL 2 needs. A reboot may be required before the next step.
+
+```powershell
+dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+```
+
+Restart Windows, then set WSL 2 as the default:
+
+```powershell
+wsl --set-default-version 2
+```
+
+On Windows 11 (or recent Windows 10 builds), you can also install WSL and these features in one step:
+
+```powershell
+wsl --install
+```
+
+That command enables the required features, installs the WSL 2 kernel, and can install Ubuntu. If you already have WSL, skip to installing or selecting Ubuntu below.
+
+### 2. Install Ubuntu on WSL
+
+**Command line (Administrator PowerShell):**
+
+```powershell
+wsl --install -d Ubuntu
+```
+
+If Ubuntu is already listed but not default:
+
+```powershell
+wsl -l -v
+wsl --set-default Ubuntu
+```
+
+Open **Ubuntu** from the Start menu and finish the initial username/password prompt.
+
+### 3. Enable systemd in WSL (required for Docker Engine)
+
+The Docker daemon is managed by **systemd** on Linux. In your Ubuntu WSL shell:
+
+```bash
+sudo tee /etc/wsl.conf > /dev/null <<'EOF'
+[boot]
+systemd=true
+EOF
+```
+
+From **PowerShell** (any window), shut down WSL so the change applies:
+
+```powershell
+wsl --shutdown
+```
+
+Open **Ubuntu** again and confirm systemd is running:
+
+```bash
+systemctl is-system-running
+```
+
+You should see `running` or `degraded` (either is fine for local development).
+
+### 4. Install Docker CLI and Engine in Ubuntu WSL
+
+Follow the [official Docker Engine install for Ubuntu](https://docs.docker.com/engine/install/ubuntu/) inside your WSL distro. Summary:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
+
+Add your user to the `docker` group so you can run Docker without `sudo`:
+
+```bash
+sudo usermod -aG docker $USER
+```
+
+Close the Ubuntu terminal, open a new one (or run `newgrp docker`), then verify:
+
+```bash
+docker --version
+docker compose version
+docker run --rm hello-world
+```
+
+If `docker run` fails with a permission error, log out of WSL completely (`wsl --shutdown` from PowerShell, then reopen Ubuntu) and try again.
+
+### 5. Optional: start Docker on login
+
+Docker Engine usually starts with systemd. If the daemon is not running:
+
+```bash
+sudo systemctl enable --now docker
+```
+
 ## Windows and WSL
 
-Run every command in this document from an **Ubuntu WSL shell**, not from PowerShell or CMD, unless you have deliberately pointed the Docker CLI elsewhere.
+Almost every command in this document should be run from an **Ubuntu WSL shell**, not from PowerShell or CMD.
 
 If the project lives on the Windows drive (for example under `C:\Users\...`), open it from WSL via `/mnt/c/Users/...`. Paths with spaces must be quoted when you `cd`, for example:
 
@@ -171,7 +283,8 @@ For more verbose output you can use `composer run test:verbose`.
 ## Troubleshooting
 
 -   **Port already in use** — Set a different `WP_PORT` in `.env`, then `docker compose up -d` again.
--   **`docker: command not found` in WSL** — Enable WSL integration for your Ubuntu distro in Docker Desktop, or install the Docker CLI in that distro per Docker’s docs.
+-   **`docker: command not found` in WSL** — Install Docker Engine in Ubuntu per [WSL and Docker setup](#wsl-and-docker-setup-without-docker-desktop). Confirm you are in the `docker` group (`groups` should list `docker`).
+-   **`Cannot connect to the Docker daemon`** — Run `sudo systemctl start docker` in Ubuntu, or ensure `systemd=true` in `/etc/wsl.conf` and run `wsl --shutdown` from PowerShell before reopening Ubuntu.
 -   **Slow edits or odd file behavior** — Prefer the project on the WSL Linux filesystem instead of only `/mnt/c`/OneDrive; see [Windows and WSL](#windows-and-wsl).
 
 Plugin development tooling: [PHP coding standards](#php-coding-standards), [Xdebug debugging](#xdebug-debugging), and [Running unit tests](#running-unit-tests).
