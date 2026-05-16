@@ -1,115 +1,102 @@
 === Post to Convex ===
-Contributors: (this should be a list of wordpress.org userid's)
-Donate link: https://example.com/
-Tags: comments, spam
-Requires at least: 6.9.4
+Contributors: beddev
+Tags: convex, sync, rest-api, block-editor, posts
+Requires at least: 6.7
 Tested up to: 6.9.4
 Requires PHP: 8.2
 Stable tag: 0.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Here is a short description of the plugin.  This should be no more than 150 characters.  No markup here.
+Sync WordPress posts to a Convex backend from the block editor, with encrypted credentials and a server-side REST proxy.
 
 == Description ==
 
-This is the long description.  No limit, and you can use Markdown (as well as in the following sections).
+Post to Convex connects your WordPress site to a [Convex](https://www.convex.dev/) deployment. Editors can push, update, or remove posts in Convex from the block editor sidebar. The plugin stores connection settings in WordPress, encrypts the shared secret at rest, and proxies outbound API calls through WordPress so the secret never reaches the browser.
 
-For backwards compatibility, if this section is missing, the full length of the short description will be used, and
-Markdown parsed.
+= Features =
 
-A few notes about the sections above:
+* **Block editor sidebar** — Post to Convex, update an existing sync, or remove a post from Convex. Unsaved edits must be saved before syncing.
+* **Admin settings** — Configure your Convex Cloud URL and shared secret under **Settings → Post to Convex Settings**.
+* **Encrypted secret storage** — The Convex secret is stored with AES-256-GCM; key material is derived from WordPress salts in `wp-config.php`, not from the database.
+* **REST API proxy** — Authenticated routes under `post-to-convex/v1` load post data from WordPress and forward it to your Convex HTTP API.
+* **Post meta** — After a successful create, the remote document id is saved in `post_to_convex_remote_id` and exposed to the REST API for the editor.
 
-*   "Contributors" is a comma separated list of wp.org/wp-plugins.org usernames
-*   "Tags" is a comma separated list of tags that apply to the plugin
-*   "Requires at least" is the lowest version that the plugin will work on
-*   "Tested up to" is the highest version that you've *successfully used to test the plugin*. Note that it might work on
-higher versions... this is just the highest one you've verified.
-*   Stable tag should indicate the Subversion "tag" of the latest stable version, or "trunk," if you use `/trunk/` for
-stable.
+= Requirements =
 
-    Note that the `readme.txt` of the stable tag is the one that is considered the defining one for the plugin, so
-if the `/trunk/readme.txt` file says that the stable tag is `4.3`, then it is `/tags/4.3/readme.txt` that'll be used
-for displaying information about the plugin.  In this situation, the only thing considered from the trunk `readme.txt`
-is the stable tag pointer.  Thus, if you develop in trunk, you can update the trunk `readme.txt` to reflect changes in
-your in-development version, without having that information incorrectly disclosed about the current stable version
-that lacks those changes -- as long as the trunk's `readme.txt` points to the correct stable tag.
+* A Convex deployment that exposes the Post to Convex HTTP API (see **Convex backend** below).
+* PHP 8.2+ with OpenSSL enabled (for secret encryption).
+* Users who sync content need the `edit_posts` capability; changing settings requires `manage_options`.
 
-    If no stable tag is provided, it is assumed that trunk is stable, but you should specify "trunk" if that's where
-you put the stable version, in order to eliminate any doubt.
+= Convex backend =
+
+Your Convex app should accept authenticated requests at:
+
+`{CONVEX_CLOUD_URL}/api/postToConvex/v1/posts`
+
+* **Create / update** — `POST` with a JSON body (title, slug, content, excerpt, type, status, dates, `originalId`, `authorId`, and on update `_id` from WordPress meta).
+* **Delete** — `DELETE` with JSON `{ "_id": "<remote id>" }`.
+
+Set the environment variable `POST_TO_CONVEX_SECRET` in Convex to the same value you save in WordPress. The plugin sends it as a `Bearer` token on outbound requests.
+
+= PHP components =
+
+The plugin bootstraps these classes from `post-to-convex.php`:
+
+* `Post_To_Convex_Admin_Settings` — Options page, `post_to_convex_cloud_url` and `post_to_convex_secret` options.
+* `Post_To_Convex_Secret_Store` — Encrypt and decrypt the shared secret (`encrypt`, `decrypt`, `get_plaintext_secret`).
+* `Post_To_Convex_Post_Meta` — Registers `post_to_convex_remote_id` for REST-enabled post types.
+* `Post_To_Convex_Rest_Api` — Registers proxy routes and handlers.
+* `Post_To_Convex_Blocks` — Registers block metadata and block-editor assets (`build/editor.js` sidebar).
+
+= REST routes =
+
+Namespace: `post-to-convex/v1` (full base: `/wp-json/post-to-convex/v1/`).
+
+Permission: callers must have `edit_posts`.
+
+**Create or update**
+
+* Route: `POST /createOrUpdatePostServer`
+* Body: `{ "id": <post id>, "isUpdate": <boolean> }`
+* Loads the post from the database, forwards fields to Convex, and on first sync stores the returned id in post meta.
+
+**Remove**
+
+* Route: `DELETE /removePostServer`
+* Body: `{ "id": <post id> }`
+* Deletes the remote document using `post_to_convex_remote_id`, then clears that meta key.
 
 == Installation ==
 
-This section describes how to install the plugin and get it working.
-
-e.g.
-
-1. Upload `plugin-name.php` to the `/wp-content/plugins/` directory
-1. Activate the plugin through the 'Plugins' menu in WordPress
-1. Place `<?php do_action('plugin_name_hook'); ?>` in your templates
+1. Upload the `post-to-convex` folder to `/wp-content/plugins/`.
+2. Activate **Post to Convex** under **Plugins** in WordPress.
+3. Go to **Settings → Post to Convex Settings**.
+4. Enter your **Convex Cloud URL** (base URL of the deployment, without the `/api/postToConvex/v1/posts` path — the plugin appends that).
+5. Generate a shared secret (for example `openssl rand -hex 32`), paste it into **Convex secret**, and click **Save Changes**.
+6. In the Convex dashboard, add an environment variable `POST_TO_CONVEX_SECRET` with the same value.
+7. Open a post in the block editor, open the **Post to Convex** sidebar, save the post, then use **Post to Convex** to sync.
 
 == Frequently Asked Questions ==
 
-= A question that someone might have =
+= Why must I save the post before syncing? =
 
-An answer to that question.
+The sidebar disables sync while the post has unsaved changes so WordPress sends the latest saved content to Convex, not stale editor state.
 
-= What about foo bar? =
+= What happens if I leave the secret field blank when saving settings? =
 
-Answer to foo bar dilemma.
+The existing encrypted secret is kept unchanged.
 
-== Screenshots ==
+= Where is the Convex document id stored? =
 
-1. This screen shot description corresponds to screenshot-1.(png|jpg|jpeg|gif). Note that the screenshot is taken from
-the /assets directory or the directory that contains the stable readme.txt (tags or trunk). Screenshots in the /assets
-directory take precedence. For example, `/assets/screenshot-1.png` would win over `/tags/4.3/screenshot-1.png`
-(or jpg, jpeg, gif).
-2. This is the second screen shot
+In post meta key `post_to_convex_remote_id`, readable in the editor when you have permission to edit the post.
 
 == Changelog ==
 
-= 1.0 =
-* A change since the previous version.
-* Another change.
-
-= 0.5 =
-* List versions from most recent at top to oldest at bottom.
+= 0.1.0 =
+* Initial release: admin settings, encrypted secret storage, REST proxy, block editor sidebar, and remote id post meta.
 
 == Upgrade Notice ==
 
-= 1.0 =
-Upgrade notices describe the reason a user should upgrade.  No more than 300 characters.
-
-= 0.5 =
-This version fixes a security related bug.  Upgrade immediately.
-
-== Arbitrary section ==
-
-You may provide arbitrary sections, in the same format as the ones above.  This may be of use for extremely complicated
-plugins where more information needs to be conveyed that doesn't fit into the categories of "description" or
-"installation."  Arbitrary sections will be shown below the built-in sections outlined above.
-
-== A brief Markdown Example ==
-
-Ordered list:
-
-1. Some feature
-1. Another feature
-1. Something else about the plugin
-
-Unordered list:
-
-* something
-* something else
-* third thing
-
-Here's a link to [WordPress](https://wordpress.org/ "Your favorite software") and one to [Markdown's Syntax Documentation][markdown syntax].
-Titles are optional, naturally.
-
-[markdown syntax]: https://daringfireball.net/projects/markdown/syntax
-            "Markdown is what the parser uses to process much of the readme file"
-
-Markdown uses email style notation for blockquotes and I've been told:
-> Asterisks for *emphasis*. Double it up  for **strong**.
-
-`<?php code(); // goes in backticks ?>`
+= 0.1.0 =
+First public release.
