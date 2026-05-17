@@ -14,6 +14,10 @@ trim_trailing_whitespace = true
 indent_style = tab
 indent_size = 4
 
+[*.sh]
+# Pair with .gitattributes (*.sh text eol=lf). Explicit so new/edited scripts stay LF on Windows.
+end_of_line = lf
+
 [{.jshintrc,*.json}]
 indent_style = tab
 indent_size = 2

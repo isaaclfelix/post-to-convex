@@ -137,6 +137,19 @@ cd "/mnt/c/Users/Your Name/projects/post-to-convex"
 
 Bind mounts from `/mnt/c` (including OneDrive folders) can be slower and sometimes fussier with file watchers than a tree on the Linux side. If you hit slowness or odd I/O behavior, consider cloning or copying the repo under your Linux home directory (for example `~/code/post-to-convex`) and running Docker from there.
 
+### Shell scripts (`bin/*.sh`)
+
+Repository shell scripts are stored with **LF** line endings ([`.gitattributes`](.gitattributes) sets `*.sh text eol=lf`). On a Windows checkout, your editor or Git may still leave **CRLF** in the working copy; WSL/bash then fails with errors like `$'\r': command not found`.
+
+Before the first run of any `bin/*.sh` helper (from Ubuntu WSL, repo root):
+
+```bash
+sed -i 's/\r$//' bin/*.sh
+chmod +x bin/*.sh
+```
+
+Run `./bin/php-lint.sh`, `./bin/test-type-safety-rules.sh`, and other `bin/*.sh` scripts from **WSL**, not from PowerShell or CMD (Docker and bash expect a Linux shell).
+
 ## First-time setup
 
 1. Copy the example environment file and edit secrets:
@@ -211,7 +224,7 @@ When you add a new PHPCS standard with Composer, **append** its path to `install
 
     Or inside the container: `composer run lint:php` / `composer run lint:php:fix` with `-w /var/www/html`.
 
-    To verify TypeSafety sniffs catch deliberate violations: `./bin/test-type-safety-rules.sh` (WSL, containers running).
+    To verify TypeSafety sniffs catch deliberate violations (after normalizing line endings above): `./bin/test-type-safety-rules.sh` and `./bin/validate-type-safety-locations.sh` (WSL, containers running).
 
 3. **Editor (Windows)**: With PHP 8.2 on `PATH` and **PHP Sniffer** installed (no Windows Composer), open a `.php` file — diagnostics and format-on-save use `.vscode/settings.json`, `bin/phpcs.bat` / `bin/phpcbf.bat`, and root `vendor/` from step 1 in Docker.
 
