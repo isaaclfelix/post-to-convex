@@ -7,6 +7,8 @@
 
 declare( strict_types=1 );
 
+require_once dirname( __DIR__ ) . '/vendor/autoload.php';
+
 $post_to_convex_tests_dir = getenv( 'WP_TESTS_DIR' );
 
 if ( ! $post_to_convex_tests_dir ) {

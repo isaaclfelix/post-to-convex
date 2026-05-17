@@ -74,9 +74,11 @@
 	<!-- PSR-4: PascalCase files and PostToConvex namespace under includes/. -->
 	<rule ref="WordPress.Files.FileName.NotHyphenatedLowercase">
 		<exclude-pattern>wp-content/plugins/post-to-convex/includes/*</exclude-pattern>
+		<exclude-pattern>wp-content/plugins/post-to-convex/tests/*</exclude-pattern>
 	</rule>
 	<rule ref="WordPress.Files.FileName.InvalidClassFileName">
 		<exclude-pattern>wp-content/plugins/post-to-convex/includes/*</exclude-pattern>
+		<exclude-pattern>wp-content/plugins/post-to-convex/tests/*</exclude-pattern>
 	</rule>
 	<rule ref="WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedNamespaceFound">
 		<exclude-pattern>wp-content/plugins/post-to-convex/includes/*</exclude-pattern>
