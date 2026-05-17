@@ -81,6 +81,7 @@ class Blocks {
 			'postToConvexEditor',
 			array(
 				'remoteIdMetaKey' => PostMeta::REMOTE_ID_META_KEY,
+				'scriptDebug'     => defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG,
 			)
 		);
 	}

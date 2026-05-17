@@ -15,22 +15,27 @@ import { useCallback, useEffect, useState } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import { registerPlugin } from '@wordpress/plugins';
 
-import { POST_TO_CONVEX_REMOTE_ID_META_KEY } from './constants';
+import { POST_TO_CONVEX_REMOTE_ID_META_KEY, SCRIPT_DEBUG } from './constants';
 import styles from './editor.module.css';
 import {
-	type CreateOrUpdatePostServerEndpointSchema,
-	createOrUpdatePostServerEndpointSchema,
-	type CreateOrUpdatePostServerResponseSchema,
-	createOrUpdatePostServerResponseSchema,
+	type CreatePostEndpointSchema,
+	createPostEndpointSchema,
+	type CreatePostResponseSchema,
+	createPostResponseSchema,
 	type RemovePostServerEndpointSchema,
 	removePostServerEndpointSchema,
 	type RemovePostServerResponseSchema,
 	removePostServerResponseSchema,
+	type UpdatePostEndpointSchema,
+	updatePostEndpointSchema,
+	type UpdatePostResponseSchema,
+	updatePostResponseSchema,
 } from './schemas';
 
 function PostToConvexSidebar() {
-	const [ isPosting, setIsPosting ] = useState< boolean >( false );
-	const [ isRemoving, setIsRemoving ] = useState< boolean >( false );
+	const [ isPutting, setIsPutting ] = useState< boolean >( false );
+	const [ isPatching, setIsPatching ] = useState< boolean >( false );
+	const [ isDeleting, setIsDeleting ] = useState< boolean >( false );
 	const [ convexId, setConvexId ] = useState< string | null >( null );
 	const [ success, setSuccess ] = useState< string >( '' );
 	const [ error, setError ] = useState< string >( '' );
@@ -77,87 +82,158 @@ function PostToConvexSidebar() {
 	/**
 	 * Handle the post to Convex.
 	 */
-	const handlePost = useCallback(
-		async (
-			_: React.MouseEvent< HTMLButtonElement >,
-			isUpdate: boolean
-		) => {
-			try {
-				setSuccess( '' );
-				setError( '' );
-				setIsPosting( true );
+	const handlePut = useCallback( async () => {
+		try {
+			setSuccess( '' );
+			setError( '' );
+			setIsPutting( true );
 
-				const payload: CreateOrUpdatePostServerEndpointSchema = {
-					id: Number( postId ),
-					isUpdate,
-				};
+			const payload: CreatePostEndpointSchema = {
+				id: Number( postId ),
+			};
 
-				const validatedPayload =
-					createOrUpdatePostServerEndpointSchema.safeParse( payload );
+			const validatedPayload =
+				createPostEndpointSchema.safeParse( payload );
 
-				if ( ! validatedPayload.success ) {
+			if ( ! validatedPayload.success ) {
+				if ( SCRIPT_DEBUG ) {
+					// eslint-disable-next-line no-console
 					console.debug( validatedPayload.error );
-					setIsPosting( false );
-					return;
 				}
-
-				const response: CreateOrUpdatePostServerResponseSchema =
-					await apiFetch( {
-						path: '/post-to-convex/v1/createOrUpdatePostServer',
-						method: 'POST',
-						headers: {
-							'Content-Type': 'application/json',
-						},
-						body: JSON.stringify( validatedPayload.data ),
-					} );
-
-				console.debug( response );
-
-				const parsedResponse =
-					createOrUpdatePostServerResponseSchema.safeParse(
-						response
-					);
-
-				if ( ! parsedResponse.success ) {
-					console.debug( parsedResponse.error );
-					return;
-				}
-
-				const {
-					data: { id },
-				} = parsedResponse.data;
-
-				setConvexId( id );
-
-				const successMessage = isUpdate
-					? __( 'Post updated in Convex successfully.' )
-					: __( 'Post sent to Convex successfully.' );
-
-				setSuccess( successMessage );
-			} catch ( postError ) {
-				console.debug( postError );
-
-				const errorMessage =
-					postError instanceof Error
-						? postError.message
-						: __( 'Unknown error', 'post-to-convex' );
-
-				setError( errorMessage );
-			} finally {
-				setIsPosting( false );
+				return;
 			}
-		},
-		[ postId ]
-	);
+
+			const response: CreatePostResponseSchema = await apiFetch( {
+				path: '/post-to-convex/v1/createPost',
+				method: 'PUT',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify( validatedPayload.data ),
+			} );
+
+			if ( SCRIPT_DEBUG ) {
+				// eslint-disable-next-line no-console
+				console.debug( response );
+			}
+
+			const parsedResponse =
+				createPostResponseSchema.safeParse( response );
+
+			if ( ! parsedResponse.success ) {
+				if ( SCRIPT_DEBUG ) {
+					// eslint-disable-next-line no-console
+					console.debug( parsedResponse.error );
+				}
+				return;
+			}
+
+			const {
+				data: { id },
+			} = parsedResponse.data;
+
+			setConvexId( id );
+
+			const successMessage = __( 'Post sent to Convex successfully.' );
+
+			setSuccess( successMessage );
+		} catch ( postError ) {
+			if ( SCRIPT_DEBUG ) {
+				// eslint-disable-next-line no-console
+				console.debug( postError );
+			}
+
+			const errorMessage =
+				postError instanceof Error
+					? postError.message
+					: __( 'Unknown error', 'post-to-convex' );
+
+			setError( errorMessage );
+		} finally {
+			setIsPutting( false );
+		}
+	}, [ postId ] );
+
+	/**
+	 * Handle the update post to Convex.
+	 */
+	const handlePatch = useCallback( async () => {
+		try {
+			setSuccess( '' );
+			setError( '' );
+			setIsPatching( true );
+
+			const payload: UpdatePostEndpointSchema = {
+				id: Number( postId ),
+			};
+
+			const validatedPayload =
+				updatePostEndpointSchema.safeParse( payload );
+
+			if ( ! validatedPayload.success ) {
+				if ( SCRIPT_DEBUG ) {
+					// eslint-disable-next-line no-console
+					console.debug( validatedPayload.error );
+				}
+				return;
+			}
+
+			const response: UpdatePostResponseSchema = await apiFetch( {
+				path: '/post-to-convex/v1/updatePost',
+				method: 'PATCH',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify( validatedPayload.data ),
+			} );
+
+			if ( SCRIPT_DEBUG ) {
+				// eslint-disable-next-line no-console
+				console.debug( response );
+			}
+
+			const parsedResponse =
+				updatePostResponseSchema.safeParse( response );
+
+			if ( ! parsedResponse.success ) {
+				if ( SCRIPT_DEBUG ) {
+					// eslint-disable-next-line no-console
+					console.debug( parsedResponse.error );
+				}
+				return;
+			}
+
+			const successMessage = __(
+				'Post updated in Convex successfully.',
+				'post-to-convex'
+			);
+
+			setSuccess( successMessage );
+		} catch ( patchError ) {
+			if ( SCRIPT_DEBUG ) {
+				// eslint-disable-next-line no-console
+				console.debug( patchError );
+			}
+
+			const errorMessage =
+				patchError instanceof Error
+					? patchError.message
+					: __( 'Unknown error', 'post-to-convex' );
+
+			setError( errorMessage );
+		} finally {
+			setIsPatching( false );
+		}
+	}, [ postId ] );
 
 	/**
 	 * Handle the remove from Convex.
 	 */
-	const handleRemove = useCallback( async () => {
+	const handleDelete = useCallback( async () => {
 		try {
 			setSuccess( '' );
 			setError( '' );
-			setIsRemoving( true );
+			setIsDeleting( true );
 
 			const payload: RemovePostServerEndpointSchema = {
 				id: Number( postId ),
@@ -167,7 +243,10 @@ function PostToConvexSidebar() {
 				removePostServerEndpointSchema.safeParse( payload );
 
 			if ( ! validatedPayload.success ) {
-				console.debug( validatedPayload.error );
+				if ( SCRIPT_DEBUG ) {
+					// eslint-disable-next-line no-console
+					console.debug( validatedPayload.error );
+				}
 				return;
 			}
 
@@ -180,13 +259,19 @@ function PostToConvexSidebar() {
 				body: JSON.stringify( validatedPayload.data ),
 			} );
 
-			console.debug( response );
+			if ( SCRIPT_DEBUG ) {
+				// eslint-disable-next-line no-console
+				console.debug( response );
+			}
 
 			const parsedResponse =
 				removePostServerResponseSchema.safeParse( response );
 
 			if ( ! parsedResponse.success ) {
-				console.debug( parsedResponse.error );
+				if ( SCRIPT_DEBUG ) {
+					// eslint-disable-next-line no-console
+					console.debug( parsedResponse.error );
+				}
 				return;
 			}
 
@@ -196,7 +281,10 @@ function PostToConvexSidebar() {
 				__( 'Post removed from Convex successfully.', 'post-to-convex' )
 			);
 		} catch ( removeError ) {
-			console.debug( removeError );
+			if ( SCRIPT_DEBUG ) {
+				// eslint-disable-next-line no-console
+				console.debug( removeError );
+			}
 
 			const errorMessage =
 				removeError instanceof Error
@@ -205,7 +293,7 @@ function PostToConvexSidebar() {
 
 			setError( errorMessage );
 		} finally {
-			setIsRemoving( false );
+			setIsDeleting( false );
 		}
 	}, [ postId ] );
 
@@ -220,25 +308,23 @@ function PostToConvexSidebar() {
 					<>
 						<Button
 							variant="primary"
-							onClick={ (
-								e: React.MouseEvent< HTMLButtonElement >
-							) => handlePost( e, true ) }
-							disabled={ isPosting || postDirty || isRemoving }
+							onClick={ handlePatch }
+							disabled={ isPatching || isDeleting || postDirty }
 						>
-							{ isPosting
+							{ isPatching
 								? __( 'Updating in Convex…' )
 								: __( 'Update in Convex' ) }
 						</Button>
 
 						<Button
 							variant="secondary"
-							onClick={ handleRemove }
-							disabled={ isPosting || isRemoving }
+							onClick={ handleDelete }
+							disabled={ isPatching || isDeleting }
 							className={
 								styles[ 'post-to-convex-sidebar-button' ]
 							}
 						>
-							{ isRemoving
+							{ isDeleting
 								? __( 'Removing from Convex…' )
 								: __( 'Remove from Convex' ) }
 						</Button>
@@ -246,12 +332,10 @@ function PostToConvexSidebar() {
 				) : (
 					<Button
 						variant="primary"
-						onClick={ (
-							e: React.MouseEvent< HTMLButtonElement >
-						) => handlePost( e, false ) }
-						disabled={ isPosting || postDirty }
+						onClick={ handlePut }
+						disabled={ isPutting || postDirty }
 					>
-						{ isPosting
+						{ isPutting
 							? __( 'Posting to Convex…' )
 							: __( 'Post to Convex' ) }
 					</Button>

@@ -35,6 +35,9 @@ services:
             WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
             WORDPRESS_DB_NAME: ${MYSQL_DATABASE}
             WORDPRESS_TABLE_PREFIX: ${WORDPRESS_TABLE_PREFIX:-wp_}
+            WORDPRESS_DEBUG: '1'
+            WORDPRESS_CONFIG_EXTRA: |
+                define( 'SCRIPT_DEBUG', true );
         volumes:
             - ./:/var/www/html
             # Keep host pnpm/node_modules off the bind mount; run Node tooling on the host only.

@@ -159,7 +159,7 @@ class AdminSettings {
 	public function render_field_cloud_url(): void {
 		$value = (string) get_option( self::OPTION_URL, '' );
 		printf(
-			'<input type="url" class="regular-text" name="%1$s" id="%1$s" value="%2$s" placeholder="https://your-deployment.convex.site/api/postToConvex/v1/posts" />',
+			'<input type="url" class="regular-text" name="%1$s" id="%1$s" value="%2$s" placeholder="https://your-deployment.convex.site" />',
 			esc_attr( self::OPTION_URL ),
 			esc_attr( $value )
 		);
