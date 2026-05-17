@@ -20,6 +20,13 @@ defined( 'ABSPATH' ) || exit;
 class Plugin {
 
 	/**
+	 * Plugin version.
+	 *
+	 * @var string
+	 */
+	public const VERSION = '0.1.0';
+
+	/**
 	 * Boot plugin services after WordPress loads.
 	 *
 	 * @return void

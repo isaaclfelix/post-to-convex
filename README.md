@@ -183,7 +183,12 @@ On first visit, complete the normal WordPress installation unless you already ha
 
 ## PHP coding standards
 
-WordPress **6.9.4** on **PHP 8.2** (Docker image and Windows PHP for the editor). PHPCS/PHPCBF use [WordPress Coding Standards](https://github.com/WordPress-Coding-Standards/WordPress-Coding-Standards) from the **repository root** (repo-wide scan; plugin prefix/i18n rules apply only under `wp-content/plugins/post-to-convex/`).
+WordPress **6.9.4** on **PHP 8.2** (Docker image and Windows PHP for the editor). PHPCS/PHPCBF run from the **repository root** against custom PHP under `wp-content/` (excluding bundled core themes/plugins), `phpcs/`, and future plugins or themes you add.
+
+-   **Repo-wide:** [WordPress Coding Standards](https://github.com/WordPress-Coding-Standards/WordPress-Coding-Standards), PHPCompatibilityWP, and the bundled **`TypeSafety`** ruleset (`declare(strict_types=1)`, native param/return/property types via [Slevomat](https://github.com/slevomat/coding-standard), typed `@var` on class constants via a small custom sniff on PHP 8.2, PHPDoc `@param`/`@return` types via Squiz `FunctionComment`).
+-   **Plugin-only** (`wp-content/plugins/post-to-convex/`): global prefix, text domain, and the custom `PostToConvex.Includes.Psr4Class` sniff for `includes/`.
+
+When you add a new PHPCS standard with Composer, **append** its path to `installed_paths` in [`.phpcs.xml.dist`](.phpcs.xml.dist). That config replaces (does not merge with) the Composer installer’s paths — omitting an entry silently drops that standard.
 
 1. **Install tooling** (from repo root in WSL, with containers running):
 
@@ -205,6 +210,8 @@ WordPress **6.9.4** on **PHP 8.2** (Docker image and Windows PHP for the editor)
     ```
 
     Or inside the container: `composer run lint:php` / `composer run lint:php:fix` with `-w /var/www/html`.
+
+    To verify TypeSafety sniffs catch deliberate violations: `./bin/test-type-safety-rules.sh` (WSL, containers running).
 
 3. **Editor (Windows)**: With PHP 8.2 on `PATH` and **PHP Sniffer** installed (no Windows Composer), open a `.php` file — diagnostics and format-on-save use `.vscode/settings.json`, `bin/phpcs.bat` / `bin/phpcbf.bat`, and root `vendor/` from step 1 in Docker.
 

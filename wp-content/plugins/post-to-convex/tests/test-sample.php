@@ -5,6 +5,8 @@
  * @package Post_To_Convex
  */
 
+declare( strict_types=1 );
+
 /**
  * Sample test case.
  */

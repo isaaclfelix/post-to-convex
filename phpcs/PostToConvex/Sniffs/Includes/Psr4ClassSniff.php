@@ -5,6 +5,8 @@
  * @package PostToConvexPHPCS
  */
 
+declare( strict_types=1 );
+
 namespace PostToConvexPHPCS\Sniffs\Includes;
 
 use PHP_CodeSniffer\Files\File;
@@ -17,12 +19,15 @@ class Psr4ClassSniff implements Sniff {
 
 	/**
 	 * Required namespace for all files in includes/.
+	 *
+	 * @var string
 	 */
 	private const REQUIRED_NAMESPACE = 'PostToConvex';
 
 	/**
 	 * Returns the token types that this sniff wants to listen for.
 	 *
+	 * @phpcsSuppress SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingNativeTypeHint
 	 * @return array<int, int|string>
 	 */
 	public function register() {
@@ -32,6 +37,8 @@ class Psr4ClassSniff implements Sniff {
 	/**
 	 * Processes this sniff, when one of its tokens is encountered.
 	 *
+	 * @phpcsSuppress SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingNativeTypeHint
+	 * @phpcsSuppress SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingNativeTypeHint
 	 * @param File $phpcs_file The file being scanned.
 	 * @param int  $stack_ptr  The position of the current token in the stack.
 	 * @return void
@@ -124,7 +131,7 @@ class Psr4ClassSniff implements Sniff {
 	 * @param string $path Absolute or relative file path.
 	 * @return bool
 	 */
-	private function is_includes_file( $path ) {
+	private function is_includes_file( string $path ): bool {
 		$normalized = str_replace( '\\', '/', $path );
 
 		return (bool) preg_match(
@@ -140,7 +147,7 @@ class Psr4ClassSniff implements Sniff {
 	 * @param int  $namespace_ptr Position of the namespace keyword.
 	 * @return string|null Namespace name or null when bracketed syntax is used.
 	 */
-	private function get_namespace_name( File $phpcs_file, $namespace_ptr ) {
+	private function get_namespace_name( File $phpcs_file, int $namespace_ptr ): ?string {
 		$tokens = $phpcs_file->getTokens();
 		$ptr    = $phpcs_file->findNext( T_WHITESPACE, $namespace_ptr + 1, null, true );
 
@@ -170,7 +177,7 @@ class Psr4ClassSniff implements Sniff {
 	 * @param File $phpcs_file The file being scanned.
 	 * @return array<int, array{ptr: int, name: string}>
 	 */
-	private function get_named_classes( File $phpcs_file ) {
+	private function get_named_classes( File $phpcs_file ): array {
 		$tokens  = $phpcs_file->getTokens();
 		$classes = array();
 		$search  = 0;

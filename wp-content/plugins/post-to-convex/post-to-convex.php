@@ -19,13 +19,6 @@ declare( strict_types=1 );
  */
 defined( 'ABSPATH' ) || exit;
 
-/**
- * Plugin version string.
- *
- * @var string
- */
-define( 'POST_TO_CONVEX_VERSION', '0.1.0' );
-
 require_once __DIR__ . '/vendor/autoload.php';
 
 use PostToConvex\Plugin;

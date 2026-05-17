@@ -5,6 +5,8 @@
  * @package Post_To_Convex
  */
 
+declare( strict_types=1 );
+
 $post_to_convex_tests_dir = getenv( 'WP_TESTS_DIR' );
 
 if ( ! $post_to_convex_tests_dir ) {
