@@ -19,8 +19,18 @@ defined( 'ABSPATH' ) || exit;
  */
 class Dom {
 
+	/**
+	 * DOMDocument load options.
+	 *
+	 * @var int
+	 */
 	private const LOAD_OPTIONS = LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD;
 
+	/**
+	 * DOMDocument fragment wrapper tag.
+	 *
+	 * @var string
+	 */
 	private const FRAGMENT_WRAPPER_TAG = 'div';
 
 	/**
@@ -45,7 +55,7 @@ class Dom {
 	 * @return \DOMDocument
 	 */
 	private static function create_dom_document(): \DOMDocument {
-		$dom = new \DOMDocument( '1.0', 'UTF-8' );
+		$dom                     = new \DOMDocument( '1.0', 'UTF-8' );
 		$dom->encoding           = 'UTF-8';
 		$dom->preserveWhiteSpace = true;
 		$dom->substituteEntities = false;
@@ -179,6 +189,6 @@ class Dom {
 	 * @return string The text content.
 	 */
 	public static function get_text_content( \DOMNode $node ): string {
-		return $node->textContent ?? ''; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+		return $node->textContent ?? '';
 	}
 }

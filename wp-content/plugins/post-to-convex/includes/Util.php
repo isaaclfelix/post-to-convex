@@ -18,6 +18,7 @@ defined( 'ABSPATH' ) || exit;
  * Utility functions.
  */
 class Util {
+
 	/**
 	 * Translate Gutenberg blocks in the content.
 	 *
