@@ -12,28 +12,22 @@
  * @package PostToConvex
  */
 
+declare( strict_types=1 );
+
+/**
+ * Security check.
+ */
 defined( 'ABSPATH' ) || exit;
 
+/**
+ * Plugin version string.
+ *
+ * @var string
+ */
 define( 'POST_TO_CONVEX_VERSION', '0.1.0' );
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-use PostToConvex\AdminSettings;
-use PostToConvex\Blocks;
-use PostToConvex\PostMeta;
-use PostToConvex\RestApi;
+use PostToConvex\Plugin;
 
-add_action(
-	'plugins_loaded',
-	static function () {
-		Blocks::init();
-		PostMeta::init();
-		RestApi::init();
-
-		if ( ! is_admin() ) {
-			return;
-		}
-
-		AdminSettings::init();
-	}
-);
+add_action( 'plugins_loaded', array( Plugin::class, 'boot' ) );

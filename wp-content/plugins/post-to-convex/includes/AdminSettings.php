@@ -5,8 +5,13 @@
  * @package PostToConvex
  */
 
+declare( strict_types=1 );
+
 namespace PostToConvex;
 
+/**
+ * Security check.
+ */
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -14,17 +19,40 @@ defined( 'ABSPATH' ) || exit;
  */
 class AdminSettings {
 
-	const OPTION_GROUP = 'post_to_convex_settings';
+	/**
+	 * Option group for the settings.
+	 *
+	 * @var string
+	 */
+	public const OPTION_GROUP = 'post_to_convex_settings';
 
-	const OPTION_URL    = 'post_to_convex_cloud_url';
-	const OPTION_SECRET = 'post_to_convex_secret';
+	/**
+	 * Option for the Convex Cloud URL.
+	 *
+	 * @var string
+	 */
+	public const OPTION_URL = 'post_to_convex_cloud_url';
 
-	const PAGE_SLUG = 'post-to-convex-settings';
+	/**
+	 * Option for the Convex secret.
+	 *
+	 * @var string
+	 */
+	public const OPTION_SECRET = 'post_to_convex_secret';
+
+	/**
+	 * Page slug for the settings page.
+	 *
+	 * @var string
+	 */
+	public const PAGE_SLUG = 'post-to-convex-settings';
 
 	/**
 	 * Boot hooks.
+	 *
+	 * @return void
 	 */
-	public static function init() {
+	public static function init(): void {
 		$self = new self();
 		add_action( 'admin_menu', array( $self, 'add_options_page' ) );
 		add_action( 'admin_init', array( $self, 'register_settings' ) );
@@ -32,8 +60,10 @@ class AdminSettings {
 
 	/**
 	 * Add submenu under Settings.
+	 *
+	 * @return void
 	 */
-	public function add_options_page() {
+	public function add_options_page(): void {
 		add_options_page(
 			__( 'Post to Convex Settings', 'post-to-convex' ),
 			__( 'Post to Convex Settings', 'post-to-convex' ),
@@ -45,8 +75,10 @@ class AdminSettings {
 
 	/**
 	 * Register settings, sections, and fields.
+	 *
+	 * @return void
 	 */
-	public function register_settings() {
+	public function register_settings(): void {
 		register_setting(
 			self::OPTION_GROUP,
 			self::OPTION_URL,
@@ -97,7 +129,7 @@ class AdminSettings {
 	 * @param mixed $value Submitted value.
 	 * @return string Ciphertext (prefixed) or previous option value.
 	 */
-	public function sanitize_secret( $value ) {
+	public function sanitize_secret( mixed $value ): string {
 		$existing = (string) get_option( self::OPTION_SECRET, '' );
 
 		if ( ! is_string( $value ) || '' === trim( $value ) ) {
@@ -121,8 +153,10 @@ class AdminSettings {
 
 	/**
 	 * Convex Cloud URL field.
+	 *
+	 * @return void
 	 */
-	public function render_field_cloud_url() {
+	public function render_field_cloud_url(): void {
 		$value = (string) get_option( self::OPTION_URL, '' );
 		printf(
 			'<input type="url" class="regular-text" name="%1$s" id="%1$s" value="%2$s" placeholder="https://your-deployment.convex.site/api/postToConvex/v1/posts" />',
@@ -133,8 +167,10 @@ class AdminSettings {
 
 	/**
 	 * Convex secret (password) field — value is not echoed for security.
+	 *
+	 * @return void
 	 */
-	public function render_field_secret() {
+	public function render_field_secret(): void {
 		printf(
 			'<input type="password" class="regular-text" name="%1$s" id="%1$s" value="" autocomplete="new-password" spellcheck="false" />',
 			esc_attr( self::OPTION_SECRET )
@@ -144,8 +180,10 @@ class AdminSettings {
 
 	/**
 	 * Step-by-step help shown under the connection fields (before Save).
+	 *
+	 * @return void
 	 */
-	private function render_setup_instructions_below_fields() {
+	private function render_setup_instructions_below_fields(): void {
 		?>
 		<div class="post-to-convex-setup-instructions">
 			<h2 class="title"><?php esc_html_e( 'Convex secret setup', 'post-to-convex' ); ?></h2>
@@ -181,8 +219,10 @@ class AdminSettings {
 
 	/**
 	 * Render the full settings page.
+	 *
+	 * @return void
 	 */
-	public function render_settings_page() {
+	public function render_settings_page(): void {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}

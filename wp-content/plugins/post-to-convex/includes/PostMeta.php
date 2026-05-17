@@ -5,8 +5,13 @@
  * @package PostToConvex
  */
 
+declare( strict_types=1 );
+
 namespace PostToConvex;
 
+/**
+ * Security check.
+ */
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -16,21 +21,27 @@ class PostMeta {
 
 	/**
 	 * Meta key for the Convex (or remote) document id after a post is synced.
+	 *
+	 * @var string
 	 */
 	public const REMOTE_ID_META_KEY = 'post_to_convex_remote_id';
 
 	/**
 	 * Boot hooks.
+	 *
+	 * @return void
 	 */
-	public static function init() {
+	public static function init(): void {
 		$self = new self();
 		add_action( 'init', array( $self, 'register_meta' ) );
 	}
 
 	/**
 	 * Register meta for all post types that participate in the REST block editor.
+	 *
+	 * @return void
 	 */
-	public function register_meta() {
+	public function register_meta(): void {
 		$post_types = get_post_types(
 			array(
 				'show_in_rest' => true,
@@ -61,7 +72,7 @@ class PostMeta {
 	 * @param int    $object_id Post ID.
 	 * @return bool
 	 */
-	public function auth_remote_id_meta( $allowed, $meta_key, $object_id ) {
+	public function auth_remote_id_meta( bool $allowed, string $meta_key, int $object_id ): bool {
 		return (bool) current_user_can( 'edit_post', $object_id );
 	}
 }

@@ -5,8 +5,13 @@
  * @package PostToConvex
  */
 
+declare( strict_types=1 );
+
 namespace PostToConvex;
 
+/**
+ * Security check.
+ */
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -14,19 +19,19 @@ defined( 'ABSPATH' ) || exit;
  */
 class SecretStore {
 
+	/**
+	 * Cipher algorithm.
+	 *
+	 * @var string
+	 */
 	private const CIPHER = 'aes-256-gcm';
 
-	/** Prefix for ciphertext blobs written to the options table. */
-	private const STORED_PREFIX = 'ptcv1:';
-
 	/**
-	 * Whether the option value is our encrypted format.
+	 * Prefix for ciphertext blobs written to the options table.
 	 *
-	 * @param string $stored Raw option string.
+	 * @var string
 	 */
-	private static function is_encrypted_blob( $stored ) {
-		return is_string( $stored ) && 0 === strpos( $stored, self::STORED_PREFIX );
-	}
+	private const STORED_PREFIX = 'ptcv1:';
 
 	/**
 	 * Encrypt plaintext for storage in the options table.
@@ -34,7 +39,7 @@ class SecretStore {
 	 * @param string $plaintext Raw secret.
 	 * @return string Prefixed ciphertext, or empty string on failure / empty input.
 	 */
-	public static function encrypt( $plaintext ) {
+	public static function encrypt( string $plaintext ): string {
 		if ( ! is_string( $plaintext ) || '' === $plaintext ) {
 			return '';
 		}
@@ -79,14 +84,9 @@ class SecretStore {
 	 * @param string $stored Value from get_option.
 	 * @return string Plaintext secret, or empty string.
 	 */
-	public static function decrypt( $stored ) {
+	public static function decrypt( string $stored ): string {
 		if ( ! is_string( $stored ) || '' === $stored ) {
 			return '';
-		}
-
-		if ( ! self::is_encrypted_blob( $stored ) ) {
-			// Legacy: stored before encryption was added.
-			return $stored;
 		}
 
 		if ( ! function_exists( 'openssl_decrypt' ) ) {
@@ -126,8 +126,10 @@ class SecretStore {
 
 	/**
 	 * Convenience: decrypted secret from the options table.
+	 *
+	 * @return string Plaintext secret, or empty string.
 	 */
-	public static function get_plaintext_secret() {
+	public static function get_plaintext_secret(): string {
 		return self::decrypt( (string) get_option( AdminSettings::OPTION_SECRET, '' ) );
 	}
 
@@ -136,7 +138,7 @@ class SecretStore {
 	 *
 	 * @return string Binary key or empty string if salts are unavailable.
 	 */
-	private static function key_material() {
+	private static function key_material(): string {
 		if ( ! function_exists( 'wp_salt' ) ) {
 			return '';
 		}

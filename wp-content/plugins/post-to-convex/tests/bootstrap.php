@@ -27,8 +27,10 @@ require_once "{$post_to_convex_tests_dir}/includes/functions.php";
 
 /**
  * Manually load the plugin being tested.
+ *
+ * @return void
  */
-function post_to_convex_manually_load_plugin() {
+function post_to_convex_manually_load_plugin(): void {
 	require dirname( __DIR__ ) . '/post-to-convex.php';
 }
 

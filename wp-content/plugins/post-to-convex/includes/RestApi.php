@@ -5,8 +5,13 @@
  * @package PostToConvex
  */
 
+declare( strict_types=1 );
+
 namespace PostToConvex;
 
+/**
+ * Security check.
+ */
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -14,26 +19,34 @@ defined( 'ABSPATH' ) || exit;
  */
 class RestApi {
 
-	/** REST route namespace (first segment of the URL after `wp-json/`). */
+	/**
+	 * REST route namespace (first segment of the URL after `wp-json/`).
+	 *
+	 * @var string
+	 */
 	public const ROUTE_NAMESPACE = 'post-to-convex/v1';
 
 	/**
 	 * Boot hooks.
+	 *
+	 * @return void
 	 */
-	public static function init() {
+	public static function init(): void {
 		$self = new self();
 		add_action( 'rest_api_init', array( $self, 'register_routes' ) );
 	}
 
 	/**
 	 * Register all routes.
+	 *
+	 * @return void
 	 */
-	public function register_routes() {
+	public function register_routes(): void {
 		register_rest_route(
 			self::ROUTE_NAMESPACE,
 			'/createOrUpdatePostServer',
 			array(
-				'methods'             => WP_REST_Server::CREATABLE,
+				'methods'             => \WP_REST_Server::CREATABLE,
 				'callback'            => array( $this, 'handle_create_or_update_post_server' ),
 				'permission_callback' => array( $this, 'can_access_api' ),
 				'args'                => array(
@@ -49,7 +62,7 @@ class RestApi {
 			self::ROUTE_NAMESPACE,
 			'/removePostServer',
 			array(
-				'methods'             => WP_REST_Server::DELETABLE,
+				'methods'             => \WP_REST_Server::DELETABLE,
 				'callback'            => array( $this, 'handle_remove_post_server' ),
 				'permission_callback' => array( $this, 'can_access_api' ),
 				'args'                => array(
@@ -67,7 +80,7 @@ class RestApi {
 	 *
 	 * @return bool
 	 */
-	public function can_access_api() {
+	public function can_access_api(): bool {
 		return current_user_can( 'edit_posts' );
 	}
 
@@ -75,9 +88,9 @@ class RestApi {
 	 * Handle the create post server request.
 	 *
 	 * @param \WP_REST_Request $request Request object.
-	 * @return \WP_REST_Response|\WP_Error
+	 * @return \WP_REST_Response
 	 */
-	public function handle_create_or_update_post_server( $request ) {
+	public function handle_create_or_update_post_server( \WP_REST_Request $request ): \WP_REST_Response {
 		$request_error_message = __( 'Request error', 'post-to-convex' );
 
 		$body = $request->get_json_params();
@@ -217,9 +230,9 @@ class RestApi {
 	 * Handle the remove post server request.
 	 *
 	 * @param \WP_REST_Request $request Request object.
-	 * @return \WP_REST_Response|\WP_Error
+	 * @return \WP_REST_Response
 	 */
-	public function handle_remove_post_server( $request ) {
+	public function handle_remove_post_server( \WP_REST_Request $request ): \WP_REST_Response {
 		$request_error_message = __( 'Request error', 'post-to-convex' );
 
 		$body = $request->get_json_params();
