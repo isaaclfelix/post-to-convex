@@ -70,6 +70,8 @@ After cloning, run **`pnpm install`** so the `prepare` script installs Husky hoo
 
 **PHP** follows [WordPress Coding Standards](https://github.com/WordPress-Coding-Standards/WordPress-Coding-Standards) via PHPCS/PHPCBF — see [README.md](./README.md#php-coding-standards). PHP is not run in the pre-commit hook; run `./bin/php-lint.sh` (or `composer run lint:php` in Docker) before pushing PHP changes. Make sure the PHP coding standards are configured at the IDE level (see README.md).
 
+Plugin PHP classes live under the `PostToConvex` namespace (`includes/`, PSR-4). After changing classes or `composer.json` autoload config, run `composer install` in `wp-content/plugins/post-to-convex/` inside Docker so `vendor/autoload.php` is regenerated locally. Release zips include `vendor/` from the build pipeline; contributors do not commit `vendor/` to git.
+
 ### Scripts
 
 -   `pnpm format` — format JS/TS/CSS/JSON/Markdown under `wp-content/`.

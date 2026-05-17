@@ -41,13 +41,13 @@ Set the environment variable `POST_TO_CONVEX_SECRET` in Convex to the same value
 
 = PHP components =
 
-The plugin bootstraps these classes from `post-to-convex.php`:
+The plugin loads PHP classes via Composer PSR-4 autoloading (`PostToConvex` namespace):
 
-* `Post_To_Convex_Admin_Settings` — Options page, `post_to_convex_cloud_url` and `post_to_convex_secret` options.
-* `Post_To_Convex_Secret_Store` — Encrypt and decrypt the shared secret (`encrypt`, `decrypt`, `get_plaintext_secret`).
-* `Post_To_Convex_Post_Meta` — Registers `post_to_convex_remote_id` for REST-enabled post types.
-* `Post_To_Convex_Rest_Api` — Registers proxy routes and handlers.
-* `Post_To_Convex_Blocks` — Registers block metadata and block-editor assets (`build/editor.js` sidebar).
+* `PostToConvex\AdminSettings` — Options page, `post_to_convex_cloud_url` and `post_to_convex_secret` options.
+* `PostToConvex\SecretStore` — Encrypt and decrypt the shared secret (`encrypt`, `decrypt`, `get_plaintext_secret`).
+* `PostToConvex\PostMeta` — Registers `post_to_convex_remote_id` for REST-enabled post types.
+* `PostToConvex\RestApi` — Registers proxy routes and handlers.
+* `PostToConvex\Blocks` — Registers block metadata and block-editor assets (`build/editor.js` sidebar).
 
 = REST routes =
 

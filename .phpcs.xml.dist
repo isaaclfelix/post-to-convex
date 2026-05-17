@@ -54,6 +54,7 @@
 		<properties>
 			<property name="prefixes" type="array">
 				<element value="post_to_convex"/>
+				<element value="PostToConvex"/>
 				<element value="Post_To_Convex"/>
 				<element value="POST_TO_CONVEX"/>
 			</property>

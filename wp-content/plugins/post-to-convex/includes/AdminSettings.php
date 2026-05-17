@@ -2,15 +2,17 @@
 /**
  * Settings screen under Settings → Post to Convex Settings.
  *
- * @package Post_To_Convex
+ * @package PostToConvex
  */
+
+namespace PostToConvex;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
  * Registers options and renders the admin settings page.
  */
-class Post_To_Convex_Admin_Settings {
+class AdminSettings {
 
 	const OPTION_GROUP = 'post_to_convex_settings';
 
@@ -103,7 +105,7 @@ class Post_To_Convex_Admin_Settings {
 		}
 
 		$plain     = sanitize_text_field( $value );
-		$encrypted = Post_To_Convex_Secret_Store::encrypt( $plain );
+		$encrypted = SecretStore::encrypt( $plain );
 
 		if ( '' === $encrypted ) {
 			add_settings_error(

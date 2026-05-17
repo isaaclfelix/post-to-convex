@@ -194,7 +194,7 @@ WordPress **6.9.4** on **PHP 8.2** (Docker image and Windows PHP for the editor)
 
     **Composer runs only inside the WordPress container** (it is included in the [`Dockerfile`](Dockerfile)). Do not install Composer on Windows. Use **`-u root`** so Composer can write `vendor/` on the bind-mounted repo (the container process otherwise runs as `www-data`). On Windows, PHP Sniffer uses `phpSniffer.executablesFolder: "bin"` — it invokes `phpcs` / `phpcbf` in that folder and Windows resolves [`bin/phpcs.bat`](bin/phpcs.bat) and [`bin/phpcbf.bat`](bin/phpcbf.bat), which call PHP 8.2 to run the Linux-installed `vendor/bin` scripts.
 
-    Plugin `composer install` under `wp-content/plugins/post-to-convex/` is still only for **PHPUnit** (also via Docker, as root — see [Running unit tests](#running-unit-tests)).
+    Plugin `composer install` under `wp-content/plugins/post-to-convex/` generates the **PSR-4 autoloader** (`vendor/autoload.php`) for local development and PHPUnit (see [Running unit tests](#running-unit-tests)). End users receive `vendor/` inside release builds; it is not committed to git.
 
 2. **Lint or fix from WSL**:
 
@@ -260,7 +260,7 @@ The **post-to-convex** plugin uses PHPUnit with the standard WordPress test harn
     cd wp-content/plugins/post-to-convex/
     ```
 
-4. **Install PHP dev dependencies:**
+4. **Install PHP dependencies** (PSR-4 autoload + PHPUnit dev tools):
 
     ```bash
     composer install

@@ -2,15 +2,17 @@
 /**
  * Registers post meta exposed to the REST API and the block editor.
  *
- * @package Post_To_Convex
+ * @package PostToConvex
  */
+
+namespace PostToConvex;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
  * Post meta keys for Post to Convex.
  */
-class Post_To_Convex_Post_Meta {
+class PostMeta {
 
 	/**
 	 * Meta key for the Convex (or remote) document id after a post is synced.

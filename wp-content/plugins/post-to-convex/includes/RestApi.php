@@ -2,15 +2,17 @@
 /**
  * Custom REST API routes for Post to Convex.
  *
- * @package Post_To_Convex
+ * @package PostToConvex
  */
+
+namespace PostToConvex;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
  * Registers plugin REST routes under the `post-to-convex/v1` namespace.
  */
-class Post_To_Convex_Rest_Api {
+class RestApi {
 
 	/** REST route namespace (first segment of the URL after `wp-json/`). */
 	public const ROUTE_NAMESPACE = 'post-to-convex/v1';
@@ -72,8 +74,8 @@ class Post_To_Convex_Rest_Api {
 	/**
 	 * Handle the create post server request.
 	 *
-	 * @param WP_REST_Request $request Request object.
-	 * @return WP_REST_Response|WP_Error
+	 * @param \WP_REST_Request $request Request object.
+	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public function handle_create_or_update_post_server( $request ) {
 		$request_error_message = __( 'Request error', 'post-to-convex' );
@@ -81,7 +83,7 @@ class Post_To_Convex_Rest_Api {
 		$body = $request->get_json_params();
 
 		if ( ! is_array( $body ) ) {
-			return new WP_REST_Response(
+			return new \WP_REST_Response(
 				array(
 					'message' => $request_error_message,
 					'error'   => __( 'Request body must be a JSON object', 'post-to-convex' ),
@@ -90,10 +92,10 @@ class Post_To_Convex_Rest_Api {
 			);
 		}
 
-		$api_url = get_option( Post_To_Convex_Admin_Settings::OPTION_URL );
+		$api_url = get_option( AdminSettings::OPTION_URL );
 
 		if ( ! $api_url ) {
-			return new WP_REST_Response(
+			return new \WP_REST_Response(
 				array(
 					'message' => $request_error_message,
 					'error'   => __( 'API URL not found', 'post-to-convex' ),
@@ -102,10 +104,10 @@ class Post_To_Convex_Rest_Api {
 			);
 		}
 
-		$api_secret = Post_To_Convex_Secret_Store::get_plaintext_secret();
+		$api_secret = SecretStore::get_plaintext_secret();
 
 		if ( ! $api_secret ) {
-			return new WP_REST_Response(
+			return new \WP_REST_Response(
 				array(
 					'message' => $request_error_message,
 					'error'   => __( 'Secret not found', 'post-to-convex' ),
@@ -122,7 +124,7 @@ class Post_To_Convex_Rest_Api {
 		$post = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $wpdb->posts WHERE ID = %d", $post_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
 		if ( ! $post ) {
-			return new WP_REST_Response(
+			return new \WP_REST_Response(
 				array(
 					'message' => $request_error_message,
 					'error'   => __( 'Post not found', 'post-to-convex' ),
@@ -153,7 +155,7 @@ class Post_To_Convex_Rest_Api {
 		);
 
 		if ( $is_update ) {
-			$convex_request_body['_id'] = get_post_meta( $post_id, Post_To_Convex_Post_Meta::REMOTE_ID_META_KEY, true );
+			$convex_request_body['_id'] = get_post_meta( $post_id, PostMeta::REMOTE_ID_META_KEY, true );
 		}
 
 		$convex_request = wp_remote_post(
@@ -169,7 +171,7 @@ class Post_To_Convex_Rest_Api {
 		if ( is_wp_error( $convex_request ) ) {
 			$error_message = $convex_request->get_error_message();
 
-			return new WP_REST_Response(
+			return new \WP_REST_Response(
 				array(
 					'message' => $request_error_message,
 					'error'   => $error_message,
@@ -181,7 +183,7 @@ class Post_To_Convex_Rest_Api {
 		$response_body = json_decode( wp_remote_retrieve_body( $convex_request ), true );
 
 		if ( 200 !== $response_code ) {
-			return new WP_REST_Response(
+			return new \WP_REST_Response(
 				array(
 					'message' => __( 'Failed to create post', 'post-to-convex' ),
 					'error'   => $response_body['error'],
@@ -191,9 +193,9 @@ class Post_To_Convex_Rest_Api {
 		}
 
 		if ( ! $is_update ) {
-			update_post_meta( $post_id, Post_To_Convex_Post_Meta::REMOTE_ID_META_KEY, $response_body['id'] );
+			update_post_meta( $post_id, PostMeta::REMOTE_ID_META_KEY, $response_body['id'] );
 
-			return new WP_REST_Response(
+			return new \WP_REST_Response(
 				array(
 					'message' => __( 'Post created', 'post-to-convex' ),
 					'data'    => $response_body,
@@ -202,7 +204,7 @@ class Post_To_Convex_Rest_Api {
 			);
 		}
 
-		return new WP_REST_Response(
+		return new \WP_REST_Response(
 			array(
 				'message' => __( 'Post updated', 'post-to-convex' ),
 				'data'    => $response_body,
@@ -214,8 +216,8 @@ class Post_To_Convex_Rest_Api {
 	/**
 	 * Handle the remove post server request.
 	 *
-	 * @param WP_REST_Request $request Request object.
-	 * @return WP_REST_Response|WP_Error
+	 * @param \WP_REST_Request $request Request object.
+	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public function handle_remove_post_server( $request ) {
 		$request_error_message = __( 'Request error', 'post-to-convex' );
@@ -223,7 +225,7 @@ class Post_To_Convex_Rest_Api {
 		$body = $request->get_json_params();
 
 		if ( ! is_array( $body ) ) {
-			return new WP_REST_Response(
+			return new \WP_REST_Response(
 				array(
 					'message' => $request_error_message,
 					'error'   => __( 'Request body must be a JSON object', 'post-to-convex' ),
@@ -232,10 +234,10 @@ class Post_To_Convex_Rest_Api {
 			);
 		}
 
-		$api_url = get_option( Post_To_Convex_Admin_Settings::OPTION_URL );
+		$api_url = get_option( AdminSettings::OPTION_URL );
 
 		if ( ! $api_url ) {
-			return new WP_REST_Response(
+			return new \WP_REST_Response(
 				array(
 					'message' => $request_error_message,
 					'error'   => __( 'API URL not found', 'post-to-convex' ),
@@ -244,10 +246,10 @@ class Post_To_Convex_Rest_Api {
 			);
 		}
 
-		$api_secret = Post_To_Convex_Secret_Store::get_plaintext_secret();
+		$api_secret = SecretStore::get_plaintext_secret();
 
 		if ( ! $api_secret ) {
-			return new WP_REST_Response(
+			return new \WP_REST_Response(
 				array(
 					'message' => $request_error_message,
 					'error'   => __( 'Secret not found', 'post-to-convex' ),
@@ -263,7 +265,7 @@ class Post_To_Convex_Rest_Api {
 		$post = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $wpdb->posts WHERE ID = %d", $post_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
 		if ( ! $post ) {
-			return new WP_REST_Response(
+			return new \WP_REST_Response(
 				array(
 					'message' => $request_error_message,
 					'error'   => __( 'Post not found', 'post-to-convex' ),
@@ -272,10 +274,10 @@ class Post_To_Convex_Rest_Api {
 			);
 		}
 
-		$remote_id = get_post_meta( $post_id, Post_To_Convex_Post_Meta::REMOTE_ID_META_KEY, true );
+		$remote_id = get_post_meta( $post_id, PostMeta::REMOTE_ID_META_KEY, true );
 
 		if ( ! $remote_id ) {
-			return new WP_REST_Response(
+			return new \WP_REST_Response(
 				array(
 					'message' => $request_error_message,
 					'error'   => __( 'Remote ID not found', 'post-to-convex' ),
@@ -307,7 +309,7 @@ class Post_To_Convex_Rest_Api {
 		if ( is_wp_error( $convex_request ) ) {
 			$error_message = $convex_request->get_error_message();
 
-			return new WP_REST_Response(
+			return new \WP_REST_Response(
 				array(
 					'message' => $request_error_message,
 					'error'   => $error_message,
@@ -319,7 +321,7 @@ class Post_To_Convex_Rest_Api {
 		$response_body = json_decode( wp_remote_retrieve_body( $convex_request ), true );
 
 		if ( 200 !== $response_code ) {
-			return new WP_REST_Response(
+			return new \WP_REST_Response(
 				array(
 					'message' => __( 'Failed to remove post', 'post-to-convex' ),
 					'error'   => $response_body['error'],
@@ -328,9 +330,9 @@ class Post_To_Convex_Rest_Api {
 			);
 		}
 
-		delete_post_meta( $post_id, Post_To_Convex_Post_Meta::REMOTE_ID_META_KEY );
+		delete_post_meta( $post_id, PostMeta::REMOTE_ID_META_KEY );
 
-		return new WP_REST_Response(
+		return new \WP_REST_Response(
 			array(
 				'message' => __( 'Post removed', 'post-to-convex' ),
 				'data'    => $response_body,

@@ -2,15 +2,17 @@
 /**
  * Encrypts the Convex shared secret at rest. The database holds ciphertext; wp-config salts supply the key material.
  *
- * @package Post_To_Convex
+ * @package PostToConvex
  */
+
+namespace PostToConvex;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
  * AES-256-GCM encryption helpers for the post_to_convex_secret option.
  */
-class Post_To_Convex_Secret_Store {
+class SecretStore {
 
 	private const CIPHER = 'aes-256-gcm';
 
@@ -126,7 +128,7 @@ class Post_To_Convex_Secret_Store {
 	 * Convenience: decrypted secret from the options table.
 	 */
 	public static function get_plaintext_secret() {
-		return self::decrypt( (string) get_option( Post_To_Convex_Admin_Settings::OPTION_SECRET, '' ) );
+		return self::decrypt( (string) get_option( AdminSettings::OPTION_SECRET, '' ) );
 	}
 
 	/**

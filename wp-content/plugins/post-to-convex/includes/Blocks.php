@@ -2,15 +2,17 @@
 /**
  * Registers the plugin's blocks.
  *
- * @package Post_To_Convex
+ * @package PostToConvex
  */
+
+namespace PostToConvex;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
  * Registers the plugin's blocks.
  */
-class Post_To_Convex_Blocks {
+class Blocks {
 
 	/**
 	 * Boot hooks.
@@ -67,7 +69,7 @@ class Post_To_Convex_Blocks {
 			'post-to-convex-editor',
 			'postToConvexEditor',
 			array(
-				'remoteIdMetaKey' => Post_To_Convex_Post_Meta::REMOTE_ID_META_KEY,
+				'remoteIdMetaKey' => PostMeta::REMOTE_ID_META_KEY,
 			)
 		);
 	}
