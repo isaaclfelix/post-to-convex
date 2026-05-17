@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<ruleset name="PostToConvex">
+	<description>PSR-4 structure rules for the post-to-convex plugin includes directory.</description>
+</ruleset>
