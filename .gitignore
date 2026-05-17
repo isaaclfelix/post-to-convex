@@ -19,10 +19,21 @@ wp-content/debug.log
 wp-content/db.php
 wp-content/languages/
 wp-content/uploads/*
-!wp-content/uploads/.gitkeep
+
+# wp-content: default docker wordpress artifacts
+wp-content/themes/twentytwentythree/
+wp-content/themes/twentytwentyfour/
+wp-content/themes/twentytwentyfive/
+wp-content/themes/index.php
+wp-content/plugins/akismet/
+wp-content/plugins/hello.php
+wp-content/plugins/index.php
+wp-content/index.php
+.htaccess
 
 # Composer / Node (plugin/theme tooling)
 /vendor/
+phpcs.xml
 node_modules/
 
 # Logs and OS junk

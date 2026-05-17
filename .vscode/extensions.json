@@ -1,0 +1,10 @@
+{
+	"recommendations": [
+		"dbaeumer.vscode-eslint",
+		"esbenp.prettier-vscode",
+		"wongjn.php-sniffer",
+		"xdebug.php-debug",
+		"bmewburn.vscode-intelephense-client",
+		"editorconfig.editorconfig"
+	]
+}

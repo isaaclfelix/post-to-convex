@@ -1,0 +1,20 @@
+{
+	"name": "post-to-convex/plugin",
+	"type": "wordpress-plugin",
+	"license": "GPL-2.0-or-later",
+	"autoload": {
+		"psr-4": {
+			"PostToConvex\\": "includes/"
+		}
+	},
+	"require-dev": {
+		"wp-cli/i18n-command": "^2",
+		"phpunit/phpunit": "^9.6",
+		"yoast/phpunit-polyfills": "^1.1"
+	},
+	"scripts": {
+		"makepot": "wp i18n make-pot .",
+		"test": "phpunit -c phpunit.xml.dist",
+		"test:verbose": "phpunit -c phpunit.xml.dist -v"
+	}
+}

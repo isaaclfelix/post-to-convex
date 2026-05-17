@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<ruleset name="TypeSafety">
+	<description>Repository-wide strict types, native type hints, and PHPDoc param/return types.</description>
+
+	<rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes">
+		<properties>
+			<property name="declareOnFirstLine" value="false"/>
+			<property name="linesCountBeforeDeclare" value="1"/>
+			<property name="linesCountAfterDeclare" value="1"/>
+			<property name="spacesCountAroundEqualsSign" value="0"/>
+		</properties>
+	</rule>
+
+	<rule ref="SlevomatCodingStandard.TypeHints.ParameterTypeHint">
+		<exclude name="SlevomatCodingStandard.TypeHints.ParameterTypeHint.UselessAnnotation"/>
+		<exclude name="SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingTraversableTypeHintSpecification"/>
+	</rule>
+	<rule ref="SlevomatCodingStandard.TypeHints.ReturnTypeHint">
+		<exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.UselessAnnotation"/>
+		<exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingTraversableTypeHintSpecification"/>
+	</rule>
+	<rule ref="SlevomatCodingStandard.TypeHints.PropertyTypeHint">
+		<exclude name="SlevomatCodingStandard.TypeHints.PropertyTypeHint.UselessAnnotation"/>
+	</rule>
+	<rule ref="SlevomatCodingStandard.TypeHints.ClassConstantTypeHint">
+		<exclude name="SlevomatCodingStandard.TypeHints.ClassConstantTypeHint.UselessVarAnnotation"/>
+		<exclude name="SlevomatCodingStandard.TypeHints.ClassConstantTypeHint.UselessDocComment"/>
+	</rule>
+	<!-- PHP 8.2: Slevomat only flags redundant @var; this requires @var when no native const type. -->
+	<rule ref="TypeSafety.TypeHints.ClassConstantVarAnnotation"/>
+
+	<rule ref="Squiz.Commenting.FunctionComment"/>
+</ruleset>

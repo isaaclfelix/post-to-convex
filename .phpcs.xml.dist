@@ -1,0 +1,102 @@
+<?xml version="1.0"?>
+<ruleset name="post-to-convex">
+	<description>WordPress Coding Standards for the post-to-convex repository.</description>
+
+	<file>.</file>
+
+	<exclude-pattern>/vendor/</exclude-pattern>
+	<exclude-pattern>/node_modules/</exclude-pattern>
+	<exclude-pattern>/wp-admin/</exclude-pattern>
+	<exclude-pattern>/wp-includes/</exclude-pattern>
+	<!-- Root WordPress entrypoints only; do NOT use /wp-*.php (matches all of wp-content\ on Windows). -->
+	<exclude-pattern>/wp-config.php</exclude-pattern>
+	<exclude-pattern>/wp-load.php</exclude-pattern>
+	<exclude-pattern>/wp-settings.php</exclude-pattern>
+	<exclude-pattern>/wp-blog-header.php</exclude-pattern>
+	<exclude-pattern>/wp-login.php</exclude-pattern>
+	<exclude-pattern>/wp-cron.php</exclude-pattern>
+	<exclude-pattern>/wp-mail.php</exclude-pattern>
+	<exclude-pattern>/wp-signup.php</exclude-pattern>
+	<exclude-pattern>/wp-activate.php</exclude-pattern>
+	<exclude-pattern>/wp-trackback.php</exclude-pattern>
+	<exclude-pattern>/wp-comments-post.php</exclude-pattern>
+	<exclude-pattern>/wp-links-opml.php</exclude-pattern>
+	<exclude-pattern>/wp-config-docker.php</exclude-pattern>
+	<exclude-pattern>/wp-config-sample.php</exclude-pattern>
+	<exclude-pattern>/index.php</exclude-pattern>
+	<exclude-pattern>/xmlrpc.php</exclude-pattern>
+	<exclude-pattern>/license.txt</exclude-pattern>
+	<exclude-pattern>/readme.html</exclude-pattern>
+	<exclude-pattern>wp-content/cache/</exclude-pattern>
+	<exclude-pattern>wp-content/upgrade/</exclude-pattern>
+	<exclude-pattern>wp-content/upgrade-temp-backup/</exclude-pattern>
+	<exclude-pattern>wp-content/backups/</exclude-pattern>
+	<exclude-pattern>wp-content/languages/</exclude-pattern>
+	<exclude-pattern>wp-content/uploads/</exclude-pattern>
+	<exclude-pattern>wp-content/themes/twentytwentythree/</exclude-pattern>
+	<exclude-pattern>wp-content/themes/twentytwentyfour/</exclude-pattern>
+	<exclude-pattern>wp-content/themes/twentytwentyfive/</exclude-pattern>
+	<exclude-pattern>wp-content/plugins/akismet/</exclude-pattern>
+	<exclude-pattern>wp-content/plugins/hello.php</exclude-pattern>
+	<exclude-pattern>**/vendor/</exclude-pattern>
+	<exclude-pattern>**/node_modules/</exclude-pattern>
+	<exclude-pattern>**/build/</exclude-pattern>
+	<exclude-pattern>*.min.php</exclude-pattern>
+	<exclude-pattern>**/tmp/</exclude-pattern>
+
+	<arg value="sp"/>
+	<arg name="basepath" value="./"/>
+	<arg name="colors"/>
+	<arg name="extensions" value="php"/>
+	<arg name="parallel" value="1"/>
+
+	<config name="testVersion" value="8.2-"/>
+	<rule ref="PHPCompatibilityWP"/>
+
+	<config name="minimum_supported_wp_version" value="6.9"/>
+	<config name="installed_paths" value="vendor/wp-coding-standards/wpcs,vendor/phpcompatibility/php-compatibility,vendor/phpcompatibility/phpcompatibility-wp,vendor/phpcompatibility/phpcompatibility-paragonie,vendor/phpcsstandards/phpcsextra,vendor/phpcsstandards/phpcsutils,vendor/slevomat/coding-standard,phpcs"/>
+	<rule ref="WordPress"/>
+	<rule ref="TypeSafety"/>
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="post_to_convex"/>
+				<element value="PostToConvex"/>
+				<element value="Post_To_Convex"/>
+				<element value="POST_TO_CONVEX"/>
+			</property>
+		</properties>
+		<include-pattern>wp-content/plugins/post-to-convex/</include-pattern>
+	</rule>
+	<!-- PSR-4: PascalCase files and PostToConvex namespace under includes/. -->
+	<rule ref="WordPress.Files.FileName.NotHyphenatedLowercase">
+		<exclude-pattern>wp-content/plugins/post-to-convex/includes/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.Files.FileName.InvalidClassFileName">
+		<exclude-pattern>wp-content/plugins/post-to-convex/includes/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedNamespaceFound">
+		<exclude-pattern>wp-content/plugins/post-to-convex/includes/*</exclude-pattern>
+	</rule>
+	<!-- Enforce PostToConvex namespace and PSR-4 class/file names in includes/. -->
+	<rule ref="PostToConvex.Includes.Psr4Class">
+		<include-pattern>wp-content/plugins/post-to-convex/includes/*.php</include-pattern>
+	</rule>
+	<!-- Plugin PHP may use CRLF on Windows checkouts; .editorconfig still recommends LF. -->
+	<rule ref="Generic.Files.LineEndings.InvalidEOLChar">
+		<exclude-pattern>wp-content/plugins/post-to-convex/</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="post-to-convex"/>
+			</property>
+		</properties>
+		<include-pattern>wp-content/plugins/post-to-convex/</include-pattern>
+	</rule>
+	<rule ref="WordPress.WhiteSpace.ControlStructureSpacing">
+		<properties>
+			<property name="blank_line_check" value="true"/>
+		</properties>
+	</rule>
+</ruleset>
