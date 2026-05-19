@@ -43,6 +43,10 @@ class BlockTranslator {
 			'core/heading',
 			new HeadingHandler( new InlineTreeParser(), new PresetResolver() )
 		);
+		$instance->register(
+			'core/paragraph',
+			new ParagraphHandler( new InlineTreeParser(), new PresetResolver() )
+		);
 
 		return $instance;
 	}

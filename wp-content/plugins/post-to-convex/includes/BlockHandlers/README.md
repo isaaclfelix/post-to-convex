@@ -13,10 +13,13 @@ flowchart LR
     parse --> translator["BlockTranslator::translate()"]
     translator --> registry{"registry[blockName]"}
     registry -->|"core/heading"| heading["HeadingHandler::translate()"]
+    registry -->|"core/paragraph"| paragraph["ParagraphHandler::translate()"]
     registry -->|wrapper block| recurse["recurse into innerBlocks"]
     registry -->|unknown| skip["skip"]
     heading --> inline["InlineTreeParser::parse()"]
+    paragraph --> inline
     heading --> presets["PresetResolver"]
+    paragraph --> presets
     translator --> encode["wp_json_encode()"]
     encode --> convex["Convex (content field)"]
 ```
@@ -25,13 +28,15 @@ The entry point is `[Util::translate_blocks()](../Util.php)`, which parses the p
 
 ## Files in this directory
 
-| File                                                     | Purpose                                                                                                                                                                            |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[BlockHandlerInterface.php](BlockHandlerInterface.php)` | One-method contract every block handler implements: `translate(array $block): array`.                                                                                              |
-| `[BlockTranslator.php](BlockTranslator.php)`             | Registry that maps block names to handlers, dispatches translation, and recurses into `innerBlocks` of wrapper blocks.                                                             |
-| `[HeadingHandler.php](HeadingHandler.php)`               | Reference implementation: translates `core/heading`.                                                                                                                               |
-| `[InlineTreeParser.php](InlineTreeParser.php)`           | Parses inline HTML (text + `<strong>`, `<em>`, `<a>`, `<mark>` and aliases) into a canonical recursive AST. Reusable by future inline-containing handlers (paragraph, list, etc.). |
-| `[PresetResolver.php](PresetResolver.php)`               | Resolves `theme.json` preset slugs (color / font-size / spacing) into concrete CSS values via `wp_get_global_settings()`.                                                          |
+| File                                                     | Purpose                                                                                                                                                                                                      |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `[BlockHandlerInterface.php](BlockHandlerInterface.php)` | One-method contract every block handler implements: `translate(array $block): array`.                                                                                                                        |
+| `[AbstractBlockHandler.php](AbstractBlockHandler.php)`   | Abstract base class for handlers that share the standard color / typography / spacing / inline-content builders. Subclasses inject the unique parts (level for heading, `dropCap` for paragraph, and so on). |
+| `[BlockTranslator.php](BlockTranslator.php)`             | Registry that maps block names to handlers, dispatches translation, and recurses into `innerBlocks` of wrapper blocks.                                                                                       |
+| `[HeadingHandler.php](HeadingHandler.php)`               | Translates `core/heading`. Owns only the heading-specific concerns (`level`, `align`, `textAlign`); everything else is inherited from `AbstractBlockHandler`.                                                |
+| `[ParagraphHandler.php](ParagraphHandler.php)`           | Translates `core/paragraph`. Owns only `dropCap` and the `attrs.align` → schema `textAlign` mapping; the rest is inherited.                                                                                  |
+| `[InlineTreeParser.php](InlineTreeParser.php)`           | Parses inline HTML (text + `<strong>`, `<em>`, `<a>`, `<mark>` and aliases) into a canonical recursive AST. Shared by every handler that emits a `content` field.                                            |
+| `[PresetResolver.php](PresetResolver.php)`               | Resolves `theme.json` preset slugs (color / font-size / spacing) into concrete CSS values via `wp_get_global_settings()`.                                                                                    |
 
 ## Output schema overview
 
@@ -42,9 +47,25 @@ Every handler emits an associative array with at least a `blockName` key. Fields
 
 The consumer (React) prefers `resolved` for inline styles and falls back to `var(--wp--preset--<kind>--<token>)` for class-based presets. The detailed `core/heading` schema, the TypeScript types, the Zod validation schema, and the React renderer are all documented in the `[heading-block-translator` plan](../../../../../.cursor/plans/) — see the "Consuming the AST in React" section.
 
-## The two main subsystems
+## The main subsystems
 
-### 1. `BlockTranslator` — registry and dispatch
+### 1. `AbstractBlockHandler` — shared builders
+
+Most of WordPress' block-level style metadata is identical across block types: colors (text / background / link), typography (font size, font style, weight, line height, letter spacing, decoration, transform, writing mode), and spacing (padding + margin). `AbstractBlockHandler` lifts every one of those builders out of the individual handlers so each subclass stays small and focused on what makes it unique.
+
+The base class:
+
+-   Owns the shared dependencies (`InlineTreeParser` + `PresetResolver`) and the constructor that injects them.
+-   Implements `BlockHandlerInterface` and leaves `translate()` abstract so subclasses must compose their own output shape.
+-   Exposes the builders as `protected` methods so subclasses can mix and match:
+    -   `build_colors( $attrs, $style )`
+    -   `build_typography( $attrs, $style )`
+    -   `build_spacing( $style )`
+    -   `nullable_string( $value )`
+
+Today both `HeadingHandler` and `ParagraphHandler` extend it. The only handler-specific code in those classes is the actual `translate()` composition plus one small private helper each (`build_level()` for heading, `build_drop_cap()` for paragraph).
+
+### 2. `BlockTranslator` — registry and dispatch
 
 The translator holds a `blockName → BlockHandlerInterface` map. `translate()` walks the parsed blocks once, in document order:
 
@@ -63,12 +84,15 @@ public static function with_defaults(): self {
         'core/heading',
         new HeadingHandler( new InlineTreeParser(), new PresetResolver() )
     );
-    // $instance->register( 'core/paragraph', new ParagraphHandler( ... ) );
+    $instance->register(
+        'core/paragraph',
+        new ParagraphHandler( new InlineTreeParser(), new PresetResolver() )
+    );
     return $instance;
 }
 ```
 
-### 2. `InlineTreeParser` — canonical inline AST
+### 3. `InlineTreeParser` — canonical inline AST
 
 Authoring nesting order in Gutenberg is non-deterministic. The same visible "bold + italic + linked" text can be authored in any of six DOM nestings depending on which format was applied first:
 
@@ -155,7 +179,7 @@ Whitespace _between_ inline siblings is preserved verbatim — that's intentiona
 
 The consumer can render the whole AST with a single recursive `switch` over `node.type`.
 
-### 3. `PresetResolver` — theme.json lookups
+### 4. `PresetResolver` — theme.json lookups
 
 The resolver wraps `[wp_get_global_settings()](https://developer.wordpress.org/reference/functions/wp_get_global_settings/)` for three preset kinds:
 
@@ -211,28 +235,36 @@ Per-field rules worth knowing:
 -   **Spacing**: `padding` and `margin` each become `{ top, right, bottom, left }` maps where every side is either a `{ token, resolved }` preset entry (for `var:preset|spacing|<slug>` references) or `{ token: null, resolved: '<literal>' }`. The whole sides map collapses to `null` when every side is missing, keeping the JSON tight.
 -   **Content**: `block.innerHTML` is passed to `InlineTreeParser::parse()`. The parser's "transparent unknown elements" rule means the `<h2>` wrapper is automatically skipped — the parser sees the heading's children as if they were the document.
 
+## How `ParagraphHandler` differs
+
+`ParagraphHandler` extends the same `AbstractBlockHandler` and shares every color / typography / spacing / inline-content concern with the heading. The unique pieces are:
+
+-   **`dropCap`** (`bool`): mirrors `attrs.dropCap`, defaulting to `false`. Only the literal boolean `true` enables the cap — any other value (truthy strings, numbers, etc.) is treated as `false` to keep the schema narrow.
+-   **`textAlign`** (`'left' | 'center' | 'right' | null`): WordPress stores paragraph text alignment in `attrs.align` with the same `left | center | right` values heading exposes under `textAlign`. To let consumers share alignment-rendering logic across block types, the handler emits the schema field as `textAlign` (not `align`). Paragraphs don't support block-level `wide` / `full`, so there is intentionally no `align` field on the paragraph schema.
+
+Everything else (`colors`, `typography`, `spacing`, `content`) is byte-for-byte the same shape as on the heading schema, which means the React consumer can route both block types through one set of helpers for those parts of the document.
+
 ## Adding a new block handler
 
-1. **Create the handler** under this directory, e.g. `ParagraphHandler.php`. Implement `BlockHandlerInterface::translate(array $block): array` and inject any helpers it needs (typically `InlineTreeParser` and `PresetResolver`). Follow the verbose property-declaration style used by `HeadingHandler` to stay consistent with the rest of the codebase and the project's PHPCS rules:
+1. **Create the handler** under this directory, e.g. `ListHandler.php`. Extend `AbstractBlockHandler` so you inherit the shared color / typography / spacing builders and the `InlineTreeParser` + `PresetResolver` plumbing — your subclass only owns its block-specific fields:
 
 ```php
  namespace PostToConvex\BlockHandlers;
 
- class ParagraphHandler implements BlockHandlerInterface {
-
-     private InlineTreeParser $inline_parser;
-     private PresetResolver $preset_resolver;
-
-     public function __construct( InlineTreeParser $inline_parser, PresetResolver $preset_resolver ) {
-         $this->inline_parser   = $inline_parser;
-         $this->preset_resolver = $preset_resolver;
-     }
+ class ListHandler extends AbstractBlockHandler {
 
      public function translate( array $block ): array {
+         $attrs      = is_array( $block['attrs'] ?? null ) ? $block['attrs'] : array();
+         $style      = is_array( $attrs['style'] ?? null ) ? $attrs['style'] : array();
+         $inner_html = is_string( $block['innerHTML'] ?? null ) ? $block['innerHTML'] : '';
+
          return array(
-             'blockName' => 'core/paragraph',
-             // …other fields…
-             'content'   => $this->inline_parser->parse( $block['innerHTML'] ?? '' ),
+             'blockName'  => 'core/list',
+             // …block-specific fields (ordered, reversed, start, …)…
+             'colors'     => $this->build_colors( $attrs, $style ),
+             'typography' => $this->build_typography( $attrs, $style ),
+             'spacing'    => $this->build_spacing( $style ),
+             'content'    => $this->inline_parser->parse( $inner_html ),
          );
      }
  }
@@ -242,8 +274,8 @@ Per-field rules worth knowing:
 
 ```php
  $instance->register(
-     'core/paragraph',
-     new ParagraphHandler( new InlineTreeParser(), new PresetResolver() )
+     'core/list',
+     new ListHandler( new InlineTreeParser(), new PresetResolver() )
  );
 ```
 
@@ -265,7 +297,8 @@ Tests live in `[wp-content/plugins/post-to-convex/tests/](../../tests/)` and use
 
 -   `**InlineTreeParserTest**` drives the parser with hand-written snippets, including a `@dataProvider` that feeds all six bold/italic/link source orderings and asserts they collapse to the same canonical AST.
 -   `**PresetResolverTest**` exercises the real WP integration via a `wp_theme_json_data_theme` filter, using `ptc-test-*` slugs that intentionally do not collide with WP core defaults so the test assertions are unambiguous.
--   `**HeadingHandlerTest**` drives the handler through every variant in `[tests/data/sample-heading-block-variants.html](../../tests/data/sample-heading-block-variants.html)`. It **does not** use a real `PresetResolver` — it injects an anonymous subclass that returns canned values for the sample's slugs (`vivid-red`, `pale-cyan-blue`, `white`, `small`/`medium`/`large`/`x-large`, `50`). This decouples the handler tests from WordPress' theme.json merge behavior, which is exercised separately in `PresetResolverTest`.
--   `**BlockTranslatorTest`\*\* uses an in-test anonymous class implementing `BlockHandlerInterface` to verify registry dispatch, `innerBlocks` recursion, and the end-to-end `Util::translate_blocks()` JSON round-trip.
+-   `**HeadingHandlerTest**` and `**ParagraphHandlerTest**` drive their respective handlers through every variant in `[tests/data/sample-heading-block-variants.html](../../tests/data/sample-heading-block-variants.html)` and `[tests/data/sample-paragraph-block-variants.html](../../tests/data/sample-paragraph-block-variants.html)`. Neither uses a real `PresetResolver` — both inject an anonymous subclass that returns canned values for the sample's slugs. This decouples the handler tests from WordPress' theme.json merge behavior, which is exercised separately in `PresetResolverTest`. Each suite also includes an integration guard (`test_inline_content_canonicalization_collapses_all_orderings`) that feeds the six link/strong/em author orderings through `Handler::translate()` and asserts they all collapse to the canonical `link > strong > em > text` tree.
+-   `**BlockTranslatorTest`\*\* uses an in-test anonymous class implementing `BlockHandlerInterface` to verify registry dispatch, `innerBlocks` recursion, and the end-to-end `Util::translate_blocks()` JSON round-trip. It also asserts the `with_defaults()` factory registers both `core/heading` and `core/paragraph`.
+-   `**tests/Support/BlockHandlerTestSupport**` is a trait shared by `HeadingHandlerTest` and `ParagraphHandlerTest`. It provides `make_fake_resolver(array $palette, array $font_sizes, array $spacing)` (the stubbed `PresetResolver` factory) and `load_blocks_of_type(string $sample_filename, string $block_name)` (the sample-loader that flattens nested blocks by name). New handler tests should reuse this trait so each test class stays focused on its handler's assertions.
 
-The fake-resolver pattern in `HeadingHandlerTest` is the recommended approach for any handler whose output depends on preset resolution. It keeps unit-test concerns separate (translator logic vs. theme.json plumbing) and avoids flakiness from whichever theme the test environment happens to load.
+The fake-resolver pattern is the recommended approach for any handler whose output depends on preset resolution. It keeps unit-test concerns separate (translator logic vs. theme.json plumbing) and avoids flakiness from whichever theme the test environment happens to load.

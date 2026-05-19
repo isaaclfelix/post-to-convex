@@ -181,6 +181,38 @@ class BlockTranslatorTest extends WP_UnitTestCase {
 	}
 
 	/**
+	 * The default registry also handles `core/paragraph` out of the box.
+	 *
+	 * @return void
+	 */
+	public function test_with_defaults_registers_paragraph(): void {
+		$translator = BlockTranslator::with_defaults();
+
+		$result = $translator->translate(
+			array(
+				array(
+					'blockName' => 'core/paragraph',
+					'attrs'     => array( 'dropCap' => true ),
+					'innerHTML' => '<p class="has-drop-cap">Hi</p>',
+				),
+			)
+		);
+
+		$this->assertCount( 1, $result );
+		$this->assertSame( 'core/paragraph', $result[0]['blockName'] );
+		$this->assertTrue( $result[0]['dropCap'] );
+		$this->assertSame(
+			array(
+				array(
+					'type' => 'text',
+					'text' => 'Hi',
+				),
+			),
+			$result[0]['content']
+		);
+	}
+
+	/**
 	 * `Util::translate_blocks` returns a JSON string whose decoded value is
 	 * structurally equal to the translator's array output.
 	 *

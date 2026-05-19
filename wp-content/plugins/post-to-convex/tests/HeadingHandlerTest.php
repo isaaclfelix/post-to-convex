@@ -10,9 +10,9 @@ declare( strict_types=1 );
 namespace PostToConvex\Tests;
 
 use PostToConvex\BlockHandlers\HeadingHandler;
-use WP_UnitTestCase;
 use PostToConvex\BlockHandlers\InlineTreeParser;
-use PostToConvex\BlockHandlers\PresetResolver;
+use PostToConvex\Tests\Support\BlockHandlerTestSupport;
+use WP_UnitTestCase;
 
 /**
  * Drives the heading handler through every variant in
@@ -24,6 +24,15 @@ use PostToConvex\BlockHandlers\PresetResolver;
  * failure.
  */
 class HeadingHandlerTest extends WP_UnitTestCase {
+
+	use BlockHandlerTestSupport;
+
+	/**
+	 * Sample HTML fixture name.
+	 *
+	 * @var string
+	 */
+	private const SAMPLE_FILE = 'sample-heading-block-variants.html';
 
 	/**
 	 * Cached parsed sample blocks (filled lazily on first access).
@@ -53,111 +62,36 @@ class HeadingHandlerTest extends WP_UnitTestCase {
 	public function set_up(): void {
 		parent::set_up();
 
-		$this->handler = new HeadingHandler( new InlineTreeParser(), $this->make_fake_resolver() );
+		$resolver = $this->make_fake_resolver(
+			array(
+				'vivid-red'      => '#cf2e2e',
+				'pale-cyan-blue' => '#abb8c3',
+				'white'          => '#ffffff',
+			),
+			array(
+				'small'   => '13px',
+				'medium'  => '20px',
+				'large'   => '36px',
+				'x-large' => '42px',
+			),
+			array( '50' => '1.25rem' )
+		);
+
+		$this->handler = new HeadingHandler( new InlineTreeParser(), $resolver );
 	}
 
 	/**
-	 * Build a stub `PresetResolver` that returns canned values for the
-	 * presets used in the sample HTML.
+	 * Lazily load and flatten every heading block in the sample (including
+	 * those nested inside wrapper blocks like the trailing `core/group`).
 	 *
-	 * @return PresetResolver Stub resolver.
-	 */
-	private function make_fake_resolver(): PresetResolver {
-		return new class() extends PresetResolver {
-
-			/**
-			 * Resolve a color preset slug from a fixed test palette.
-			 *
-			 * @param string $slug Color slug.
-			 * @return string|null Resolved hex value or null.
-			 */
-			public function resolve_color( string $slug ): ?string {
-				$palette = array(
-					'vivid-red'      => '#cf2e2e',
-					'pale-cyan-blue' => '#abb8c3',
-					'white'          => '#ffffff',
-				);
-
-				return $palette[ $slug ] ?? null;
-			}
-
-			/**
-			 * Resolve a font-size preset slug from a fixed test scale.
-			 *
-			 * @param string $slug Font-size slug.
-			 * @return string|null Resolved CSS value or null.
-			 */
-			public function resolve_font_size( string $slug ): ?string {
-				$sizes = array(
-					'small'   => '13px',
-					'medium'  => '20px',
-					'large'   => '36px',
-					'x-large' => '42px',
-				);
-
-				return $sizes[ $slug ] ?? null;
-			}
-
-			/**
-			 * Resolve a spacing preset slug from a fixed test scale.
-			 *
-			 * @param string $slug Spacing slug.
-			 * @return string|null Resolved CSS value or null.
-			 */
-			public function resolve_spacing( string $slug ): ?string {
-				return '50' === $slug ? '1.25rem' : null;
-			}
-		};
-	}
-
-	/**
-	 * Lazily load and parse the sample HTML, flattening any nested heading
-	 * blocks (e.g. inside the trailing flex `core/group`) so the index-based
-	 * lookup matches the source file's reading order.
-	 *
-	 * @return array<int, array<string, mixed>> All heading blocks in the sample, in document order.
+	 * @return array<int, array<string, mixed>> Heading blocks in document order.
 	 */
 	private function sample_blocks(): array {
-		if ( null !== self::$sample_blocks ) {
-			return self::$sample_blocks;
+		if ( null === self::$sample_blocks ) {
+			self::$sample_blocks = $this->load_blocks_of_type( self::SAMPLE_FILE, 'core/heading' );
 		}
-
-		$path   = __DIR__ . '/data/sample-heading-block-variants.html';
-		$html   = file_exists( $path ) ? file_get_contents( $path ) : false; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local fixture read; wp_remote_get is for URLs.
-		$blocks = parse_blocks( is_string( $html ) ? $html : '' );
-
-		self::$sample_blocks = $this->flatten_heading_blocks( $blocks );
 
 		return self::$sample_blocks;
-	}
-
-	/**
-	 * Recursively collect every `core/heading` block (including those nested
-	 * inside wrapper blocks like `core/group`) in document order.
-	 *
-	 * @param array<int, array<string, mixed>> $blocks Parsed blocks.
-	 * @return array<int, array<string, mixed>> Heading blocks only.
-	 */
-	private function flatten_heading_blocks( array $blocks ): array {
-		$out = array();
-
-		foreach ( $blocks as $block ) {
-			if ( ! is_array( $block ) ) {
-				continue;
-			}
-			if ( 'core/heading' === ( $block['blockName'] ?? null ) ) {
-				$out[] = $block;
-				continue;
-			}
-			$inner = $block['innerBlocks'] ?? null;
-			if ( is_array( $inner ) && ! empty( $inner ) ) {
-				foreach ( $this->flatten_heading_blocks( $inner ) as $nested ) {
-					$out[] = $nested;
-				}
-			}
-		}
-
-		return $out;
 	}
 
 	/**
@@ -556,5 +490,83 @@ class HeadingHandlerTest extends WP_UnitTestCase {
 
 		$this->assertSame( 'right', $right['textAlign'] );
 		$this->assertSame( 'vertical-rl', $right['typography']['writingMode'] );
+	}
+
+	/**
+	 * All six valid orderings of a "bold italic linked" inline run.
+	 *
+	 * Mirrors {@see InlineTreeParserTest::provide_link_strong_em_orderings}.
+	 *
+	 * @return array<string, array{0: string}>
+	 */
+	public static function provide_link_strong_em_orderings(): array {
+		return array(
+			'a > strong > em' => array( '<a href="/x"><strong><em>x</em></strong></a>' ),
+			'a > em > strong' => array( '<a href="/x"><em><strong>x</strong></em></a>' ),
+			'strong > a > em' => array( '<strong><a href="/x"><em>x</a></em></strong>' ),
+			'strong > em > a' => array( '<strong><em><a href="/x">x</a></em></strong>' ),
+			'em > a > strong' => array( '<em><a href="/x"><strong>x</strong></a></em>' ),
+			'em > strong > a' => array( '<em><strong><a href="/x">x</a></strong></em>' ),
+		);
+	}
+
+	/**
+	 * The canonical AST for "bold italic linked" inline content.
+	 *
+	 * @return array<int, array<string, mixed>>
+	 */
+	private function canonical_link_strong_em_tree(): array {
+		return array(
+			array(
+				'type'     => 'link',
+				'attrs'    => array( 'href' => '/x' ),
+				'children' => array(
+					array(
+						'type'     => 'strong',
+						'children' => array(
+							array(
+								'type'     => 'em',
+								'children' => array(
+									array(
+										'type' => 'text',
+										'text' => 'x',
+									),
+								),
+							),
+						),
+					),
+				),
+			),
+		);
+	}
+
+	/**
+	 * Integration-level guard: every author-ordering of a triple-marked inline
+	 * run (link / strong / em around an "x" leaf), routed through a synthetic
+	 * `core/heading` block and {@see HeadingHandler::translate()}, collapses
+	 * to the canonical `link > strong > em > text` AST.
+	 *
+	 * The parser-level guarantee is exercised in
+	 * {@see InlineTreeParserTest::test_canonicalization_collapses_all_orderings}.
+	 * This test confirms the canonicalization survives the handler-level
+	 * wiring for headings specifically (and mirrors the matching guard in
+	 * {@see ParagraphHandlerTest}).
+	 *
+	 * @dataProvider provide_link_strong_em_orderings
+	 *
+	 * @param string $ordering_html Inline HTML for one of the six valid orderings.
+	 * @return void
+	 */
+	public function test_inline_content_canonicalization_collapses_all_orderings( string $ordering_html ): void {
+		$block = array(
+			'blockName'   => 'core/heading',
+			'attrs'       => array(),
+			'innerHTML'   => '<h2>' . $ordering_html . '</h2>',
+			'innerBlocks' => array(),
+		);
+
+		$result = $this->handler->translate( $block );
+
+		$this->assertSame( $this->canonical_link_strong_em_tree(), $result['content'] );
 	}
 }
