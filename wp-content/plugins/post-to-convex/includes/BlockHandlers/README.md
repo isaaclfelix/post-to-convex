@@ -14,12 +14,15 @@ flowchart LR
     translator --> registry{"registry[blockName]"}
     registry -->|"core/heading"| heading["HeadingHandler::translate()"]
     registry -->|"core/paragraph"| paragraph["ParagraphHandler::translate()"]
+    registry -->|"core/list"| list["ListHandler::translate()"]
     registry -->|wrapper block| recurse["recurse into innerBlocks"]
     registry -->|unknown| skip["skip"]
     heading --> inline["InlineTreeParser::parse()"]
     paragraph --> inline
+    list --> inline
     heading --> presets["PresetResolver"]
     paragraph --> presets
+    list --> presets
     translator --> encode["wp_json_encode()"]
     encode --> convex["Convex (content field)"]
 ```
@@ -35,7 +38,8 @@ The entry point is `[Util::translate_blocks()](../Util.php)`, which parses the p
 | `[BlockTranslator.php](BlockTranslator.php)`             | Registry that maps block names to handlers, dispatches translation, and recurses into `innerBlocks` of wrapper blocks.                                                                                       |
 | `[HeadingHandler.php](HeadingHandler.php)`               | Translates `core/heading`. Owns only the heading-specific concerns (`level`, `align`, `textAlign`); everything else is inherited from `AbstractBlockHandler`.                                                |
 | `[ParagraphHandler.php](ParagraphHandler.php)`           | Translates `core/paragraph`. Owns only `dropCap` and the `attrs.align` → schema `textAlign` mapping; the rest is inherited.                                                                                  |
-| `[InlineTreeParser.php](InlineTreeParser.php)`           | Parses inline HTML (text + `<strong>`, `<em>`, `<a>`, `<mark>` and aliases) into a canonical recursive AST. Shared by every handler that emits a `content` field.                                            |
+| `[ListHandler.php](ListHandler.php)`                     | Translates `core/list`. Owns list structure (`ordered`, `reversed`, `start`, `type`, `items` with per-item inline AST and optional nested lists); colors / typography / spacing are inherited.               |
+| `[InlineTreeParser.php](InlineTreeParser.php)`           | Parses inline HTML (text + `<strong>`, `<em>`, `<a>`, `<mark>` and aliases) into a canonical recursive AST. Shared by every handler that emits inline content (`content` or `items[].content`).              |
 | `[PresetResolver.php](PresetResolver.php)`               | Resolves `theme.json` preset slugs (color / font-size / spacing) into concrete CSS values via `wp_get_global_settings()`.                                                                                    |
 
 ## Output schema overview
@@ -63,7 +67,7 @@ The base class:
     -   `build_spacing( $style )`
     -   `nullable_string( $value )`
 
-Today both `HeadingHandler` and `ParagraphHandler` extend it. The only handler-specific code in those classes is the actual `translate()` composition plus one small private helper each (`build_level()` for heading, `build_drop_cap()` for paragraph).
+Today `HeadingHandler`, `ParagraphHandler`, and `ListHandler` extend it. Handler-specific code stays in each subclass's `translate()` composition and its private helpers (`build_level()` for heading, `build_drop_cap()` for paragraph, `build_items()` / `list_item_inline_html()` for list).
 
 ### 2. `BlockTranslator` — registry and dispatch
 
@@ -87,6 +91,10 @@ public static function with_defaults(): self {
     $instance->register(
         'core/paragraph',
         new ParagraphHandler( new InlineTreeParser(), new PresetResolver() )
+    );
+    $instance->register(
+        'core/list',
+        new ListHandler( new InlineTreeParser(), new PresetResolver() )
     );
     return $instance;
 }
@@ -244,9 +252,37 @@ Per-field rules worth knowing:
 
 Everything else (`colors`, `typography`, `spacing`, `content`) is byte-for-byte the same shape as on the heading schema, which means the React consumer can route both block types through one set of helpers for those parts of the document.
 
+## How `ListHandler` differs
+
+Lists are **container blocks**: item text lives on `core/list-item` children, not on the list wrapper's `innerHTML`. Nested lists inside a list-item are embedded under `items[].nested` rather than emitted as separate top-level translated blocks (the registry stops recursing once a handler matches).
+
+```php
+return array(
+    'blockName'  => 'core/list',
+    'ordered'    => $this->build_ordered( $attrs ),
+    'reversed'   => $this->build_reversed( $attrs ),
+    'start'      => $this->build_start( $attrs ),
+    'type'       => $this->nullable_string( $attrs['type'] ?? null ),
+    'colors'     => $this->build_colors( $attrs, $style ),
+    'typography' => $this->build_typography( $attrs, $style ),
+    'spacing'    => $this->build_spacing( $style ),
+    'items'      => $this->build_items( $block ),
+);
+```
+
+Per-field rules worth knowing:
+
+-   **`ordered` / `reversed`**: only literal boolean `true` enables each flag — same strictness as paragraph `dropCap`.
+-   **`start`**: `null` when absent; otherwise a positive integer (`attrs.start` on ordered lists).
+-   **`type`**: list-style type for ordered lists (`upper-alpha`, `lower-roman`, …); `null` when absent (browser default decimal).
+-   **`items`**: built by walking `innerBlocks` for `core/list-item`. Each item has:
+    -   **`content`**: inline AST parsed from the list-item's `innerContent` string fragments only (skipping `null` placeholders for nested blocks so nested `<ul>` / `<ol>` markup is not parsed twice).
+    -   **`nested`**: optional structural subtree (`ordered`, `reversed`, `start`, `type`, `items`) when the list-item contains a nested `core/list` in `innerBlocks`.
+-   **Colors / typography / spacing**: identical shape to heading and paragraph — the React consumer can reuse the same style helpers.
+
 ## Adding a new block handler
 
-1. **Create the handler** under this directory, e.g. `ListHandler.php`. Extend `AbstractBlockHandler` so you inherit the shared color / typography / spacing builders and the `InlineTreeParser` + `PresetResolver` plumbing — your subclass only owns its block-specific fields:
+1. **Create the handler** under this directory. Extend `AbstractBlockHandler` so you inherit the shared color / typography / spacing builders and the `InlineTreeParser` + `PresetResolver` plumbing — your subclass only owns its block-specific fields. Leaf blocks (heading, paragraph) emit a top-level `content` AST; container blocks like `core/list` walk `innerBlocks` instead:
 
 ```php
  namespace PostToConvex\BlockHandlers;
@@ -254,17 +290,19 @@ Everything else (`colors`, `typography`, `spacing`, `content`) is byte-for-byte 
  class ListHandler extends AbstractBlockHandler {
 
      public function translate( array $block ): array {
-         $attrs      = is_array( $block['attrs'] ?? null ) ? $block['attrs'] : array();
-         $style      = is_array( $attrs['style'] ?? null ) ? $attrs['style'] : array();
-         $inner_html = is_string( $block['innerHTML'] ?? null ) ? $block['innerHTML'] : '';
+         $attrs = is_array( $block['attrs'] ?? null ) ? $block['attrs'] : array();
+         $style = is_array( $attrs['style'] ?? null ) ? $attrs['style'] : array();
 
          return array(
              'blockName'  => 'core/list',
-             // …block-specific fields (ordered, reversed, start, …)…
+             'ordered'    => /* … */,
+             'reversed'   => /* … */,
+             'start'      => /* … */,
+             'type'       => $this->nullable_string( $attrs['type'] ?? null ),
              'colors'     => $this->build_colors( $attrs, $style ),
              'typography' => $this->build_typography( $attrs, $style ),
              'spacing'    => $this->build_spacing( $style ),
-             'content'    => $this->inline_parser->parse( $inner_html ),
+             'items'      => $this->build_items( $block ),
          );
      }
  }
@@ -297,8 +335,8 @@ Tests live in `[wp-content/plugins/post-to-convex/tests/](../../tests/)` and use
 
 -   `**InlineTreeParserTest**` drives the parser with hand-written snippets, including a `@dataProvider` that feeds all six bold/italic/link source orderings and asserts they collapse to the same canonical AST.
 -   `**PresetResolverTest**` exercises the real WP integration via a `wp_theme_json_data_theme` filter, using `ptc-test-*` slugs that intentionally do not collide with WP core defaults so the test assertions are unambiguous.
--   `**HeadingHandlerTest**` and `**ParagraphHandlerTest**` drive their respective handlers through every variant in `[tests/data/sample-heading-block-variants.html](../../tests/data/sample-heading-block-variants.html)` and `[tests/data/sample-paragraph-block-variants.html](../../tests/data/sample-paragraph-block-variants.html)`. Neither uses a real `PresetResolver` — both inject an anonymous subclass that returns canned values for the sample's slugs. This decouples the handler tests from WordPress' theme.json merge behavior, which is exercised separately in `PresetResolverTest`. Each suite also includes an integration guard (`test_inline_content_canonicalization_collapses_all_orderings`) that feeds the six link/strong/em author orderings through `Handler::translate()` and asserts they all collapse to the canonical `link > strong > em > text` tree.
--   `**BlockTranslatorTest`\*\* uses an in-test anonymous class implementing `BlockHandlerInterface` to verify registry dispatch, `innerBlocks` recursion, and the end-to-end `Util::translate_blocks()` JSON round-trip. It also asserts the `with_defaults()` factory registers both `core/heading` and `core/paragraph`.
--   `**tests/Support/BlockHandlerTestSupport**` is a trait shared by `HeadingHandlerTest` and `ParagraphHandlerTest`. It provides `make_fake_resolver(array $palette, array $font_sizes, array $spacing)` (the stubbed `PresetResolver` factory) and `load_blocks_of_type(string $sample_filename, string $block_name)` (the sample-loader that flattens nested blocks by name). New handler tests should reuse this trait so each test class stays focused on its handler's assertions.
+-   `**HeadingHandlerTest**`, `**ParagraphHandlerTest**`, and `**ListHandlerTest**` drive their respective handlers through every variant in `[tests/data/sample-heading-block-variants.html](../../tests/data/sample-heading-block-variants.html)`, `[tests/data/sample-paragraph-block-variants.html](../../tests/data/sample-paragraph-block-variants.html)`, and `[tests/data/sample-list-block-variants.html](../../tests/data/sample-list-block-variants.html)`. None uses a real `PresetResolver` — each injects an anonymous subclass that returns canned values for the sample's slugs. This decouples the handler tests from WordPress' theme.json merge behavior, which is exercised separately in `PresetResolverTest`. Each suite also includes an integration guard (`test_inline_content_canonicalization_collapses_all_orderings`) that feeds the six link/strong/em author orderings through `Handler::translate()` and asserts they all collapse to the canonical `link > strong > em > text` tree.
+-   `**BlockTranslatorTest**` uses an in-test anonymous class implementing `BlockHandlerInterface` to verify registry dispatch, `innerBlocks` recursion, and the end-to-end `Util::translate_blocks()` JSON round-trip. It also asserts the `with_defaults()` factory registers `core/heading`, `core/paragraph`, and `core/list`.
+-   `**tests/Support/BlockHandlerTestSupport**` is a trait shared by the handler test suites. It provides `make_fake_resolver(array $palette, array $font_sizes, array $spacing)` (the stubbed `PresetResolver` factory) and `load_blocks_of_type(string $sample_filename, string $block_name)` (the sample-loader that flattens blocks by name — for lists, only **top-level** `core/list` blocks are indexed because nested lists inside list-items are not descended into after a name match). New handler tests should reuse this trait so each test class stays focused on its handler's assertions.
 
 The fake-resolver pattern is the recommended approach for any handler whose output depends on preset resolution. It keeps unit-test concerns separate (translator logic vs. theme.json plumbing) and avoids flakiness from whichever theme the test environment happens to load.

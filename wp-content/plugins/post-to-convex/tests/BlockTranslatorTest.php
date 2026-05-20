@@ -213,6 +213,33 @@ class BlockTranslatorTest extends WP_UnitTestCase {
 	}
 
 	/**
+	 * The default registry also handles `core/list` out of the box.
+	 *
+	 * @return void
+	 */
+	public function test_with_defaults_registers_list(): void {
+		$translator = BlockTranslator::with_defaults();
+
+		$content = "<!-- wp:list -->\n<ul><!-- wp:list-item -->\n<li>Item</li>\n<!-- /wp:list-item --></ul>\n<!-- /wp:list -->";
+
+		$result = $translator->translate( parse_blocks( $content ) );
+
+		$this->assertCount( 1, $result );
+		$this->assertSame( 'core/list', $result[0]['blockName'] );
+		$this->assertArrayHasKey( 'items', $result[0] );
+		$this->assertCount( 1, $result[0]['items'] );
+		$this->assertSame(
+			array(
+				array(
+					'type' => 'text',
+					'text' => 'Item',
+				),
+			),
+			$result[0]['items'][0]['content']
+		);
+	}
+
+	/**
 	 * `Util::translate_blocks` returns a JSON string whose decoded value is
 	 * structurally equal to the translator's array output.
 	 *
