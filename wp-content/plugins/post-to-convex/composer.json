@@ -7,6 +7,11 @@
 			"PostToConvex\\": "includes/"
 		}
 	},
+	"autoload-dev": {
+		"psr-4": {
+			"PostToConvex\\Tests\\": "tests/"
+		}
+	},
 	"require-dev": {
 		"wp-cli/i18n-command": "^2",
 		"phpunit/phpunit": "^9.6",

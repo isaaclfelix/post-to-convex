@@ -169,7 +169,7 @@ class RestApi {
 		$convex_request_body = array(
 			'title'         => $post->post_title,
 			'slug'          => $post->post_name,
-			'content'       => $post->post_content,
+			'content'       => Util::translate_blocks( $post->post_content ),
 			'excerpt'       => $post->post_excerpt,
 			'type'          => $post->post_type,
 			'status'        => $post->post_status,
@@ -310,7 +310,7 @@ class RestApi {
 			'_id'           => $remote_id,
 			'title'         => $post->post_title,
 			'slug'          => $post->post_name,
-			'content'       => $post->post_content,
+			'content'       => Util::translate_blocks( $post->post_content ),
 			'excerpt'       => $post->post_excerpt,
 			'type'          => $post->post_type,
 			'status'        => $post->post_status,
