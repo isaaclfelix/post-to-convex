@@ -166,21 +166,7 @@ class RestApi {
 			'Content-Type'  => 'application/json',
 		);
 
-		$convex_request_body = array(
-			'title'         => $post->post_title,
-			'slug'          => $post->post_name,
-			'content'       => Util::translate_blocks( $post->post_content ),
-			'excerpt'       => $post->post_excerpt,
-			'type'          => $post->post_type,
-			'status'        => $post->post_status,
-			'commentStatus' => $post->comment_status,
-			'createdAt'     => $post->post_date_gmt,
-			'updatedAt'     => $post->post_modified_gmt,
-			'originalId'    => intval( $post->ID ),
-			'authorId'      => intval( $post->post_author ),
-			'categoryIds'   => array(),
-			'tagIds'        => array(),
-		);
+		$convex_request_body = $this->build_convex_post_fields( $post );
 
 		$convex_request = wp_remote_post(
 			sprintf( '%s/api/postToConvex/v1/posts', $api_url ),
@@ -306,21 +292,9 @@ class RestApi {
 			);
 		}
 
-		$convex_request_body = array(
-			'_id'           => $remote_id,
-			'title'         => $post->post_title,
-			'slug'          => $post->post_name,
-			'content'       => Util::translate_blocks( $post->post_content ),
-			'excerpt'       => $post->post_excerpt,
-			'type'          => $post->post_type,
-			'status'        => $post->post_status,
-			'commentStatus' => $post->comment_status,
-			'createdAt'     => $post->post_date_gmt,
-			'updatedAt'     => $post->post_modified_gmt,
-			'originalId'    => intval( $post->ID ),
-			'authorId'      => intval( $post->post_author ),
-			'categoryIds'   => array(),
-			'tagIds'        => array(),
+		$convex_request_body = array_merge(
+			array( '_id' => $remote_id ),
+			$this->build_convex_post_fields( $post )
 		);
 
 		$convex_request = wp_remote_post(
@@ -493,5 +467,249 @@ class RestApi {
 			),
 			200
 		);
+	}
+
+	/**
+	 * Build shared Convex post fields from a WordPress post row.
+	 *
+	 * @param object $post Post row from the database.
+	 * @return array<string, mixed>
+	 */
+	private function build_convex_post_fields( object $post ): array {
+		$post_id  = intval( $post->ID );
+		$taxonomy = $this->build_taxonomy_payload( $post_id );
+
+		return array_merge(
+			array(
+				'title'         => $post->post_title,
+				'slug'          => $post->post_name,
+				'content'       => Util::translate_blocks( $post->post_content ),
+				'excerpt'       => $post->post_excerpt,
+				'type'          => $post->post_type,
+				'status'        => $post->post_status,
+				'commentStatus' => $post->comment_status,
+				'createdAt'     => $post->post_date_gmt,
+				'updatedAt'     => $post->post_modified_gmt,
+				'originalId'    => $post_id,
+				'authorId'      => intval( $post->post_author ),
+			),
+			$taxonomy
+		);
+	}
+
+	/**
+	 * Build categories, tags, and permalink category fields for the Convex API.
+	 *
+	 * @param int $post_id WordPress post ID.
+	 * @return array{categories: array<int, array<string, int|string>>, tags: array<int, array<string, int|string>>, permalinkCategoryOriginalId: int}
+	 */
+	private function build_taxonomy_payload( int $post_id ): array {
+		if ( $this->is_post_uncategorized( $post_id ) ) {
+			return array_merge(
+				$this->get_uncategorized_taxonomy_payload(),
+				array( 'tags' => $this->build_tags_payload( $post_id ) )
+			);
+		}
+
+		$category_terms = get_the_terms( $post_id, 'category' );
+		$categories     = array();
+
+		if ( is_array( $category_terms ) ) {
+			foreach ( $category_terms as $term ) {
+				if ( $term instanceof \WP_Term ) {
+					$categories[] = $this->format_category_term( $term );
+				}
+			}
+		}
+
+		return array(
+			'categories'                  => $categories,
+			'tags'                        => $this->build_tags_payload( $post_id ),
+			'permalinkCategoryOriginalId' => $this->get_permalink_category_original_id( $category_terms ),
+		);
+	}
+
+	/**
+	 * Taxonomy payload when a post has no real category assignment.
+	 *
+	 * Uses the site default category from Settings → Writing.
+	 *
+	 * @return array{categories: array<int, array<string, int|string>>, permalinkCategoryOriginalId: int}
+	 */
+	private function get_uncategorized_taxonomy_payload(): array {
+		$default_term = $this->get_default_category_term();
+
+		if ( null === $default_term ) {
+			return array(
+				'categories'                  => array(),
+				'permalinkCategoryOriginalId' => 0,
+			);
+		}
+
+		return array(
+			'categories'                  => array(
+				$this->format_category_term( $default_term ),
+			),
+			'permalinkCategoryOriginalId' => (int) $default_term->term_id,
+		);
+	}
+
+	/**
+	 * The site's default post category term.
+	 *
+	 * @return \WP_Term|null
+	 */
+	private function get_default_category_term(): ?\WP_Term {
+		$term_id = $this->get_default_category_id();
+
+		if ( $term_id <= 0 ) {
+			return null;
+		}
+
+		$term = get_term( $term_id, 'category' );
+
+		if ( is_wp_error( $term ) || ! $term instanceof \WP_Term ) {
+			return null;
+		}
+
+		return $term;
+	}
+
+	/**
+	 * Term ID of the site's default post category.
+	 *
+	 * @return int
+	 */
+	private function get_default_category_id(): int {
+		return (int) get_option( 'default_category', 1 );
+	}
+
+	/**
+	 * Whether the post is effectively uncategorized (no terms or only the default category).
+	 *
+	 * @param int $post_id WordPress post ID.
+	 * @return bool
+	 */
+	private function is_post_uncategorized( int $post_id ): bool {
+		$category_terms = get_the_terms( $post_id, 'category' );
+
+		if ( is_wp_error( $category_terms ) || empty( $category_terms ) ) {
+			return true;
+		}
+
+		if ( 1 === count( $category_terms ) ) {
+			$default_category_id = $this->get_default_category_id();
+			$term                = $category_terms[0];
+			return $term instanceof \WP_Term && (int) $term->term_id === $default_category_id;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Map a WordPress category term to the Convex category shape.
+	 *
+	 * @param \WP_Term $term Category term.
+	 * @return array<string, int|string>
+	 */
+	private function format_category_term( \WP_Term $term ): array {
+		$category = array(
+			'originalId' => (int) $term->term_id,
+			'name'       => $term->name,
+			'slug'       => $term->slug,
+		);
+
+		if ( (int) $term->parent > 0 ) {
+			$category['parentOriginalId'] = (int) $term->parent;
+		}
+
+		return $category;
+	}
+
+	/**
+	 * Map post tags to the Convex tag shape.
+	 *
+	 * @param int $post_id WordPress post ID.
+	 * @return array<int, array<string, int|string>>
+	 */
+	private function build_tags_payload( int $post_id ): array {
+		$tag_terms = get_the_terms( $post_id, 'post_tag' );
+
+		if ( is_wp_error( $tag_terms ) || empty( $tag_terms ) ) {
+			return array();
+		}
+
+		$tags = array();
+
+		foreach ( $tag_terms as $term ) {
+			if ( $term instanceof \WP_Term ) {
+				$tags[] = array(
+					'originalId' => (int) $term->term_id,
+					'name'       => $term->name,
+					'slug'       => $term->slug,
+				);
+			}
+		}
+
+		return $tags;
+	}
+
+	/**
+	 * Original ID of the deepest assigned category (used in permalinks).
+	 *
+	 * @param array<int, \WP_Term>|false|\WP_Error $category_terms Assigned category terms.
+	 * @return int
+	 */
+	private function get_permalink_category_original_id( array|false|\WP_Error $category_terms ): int {
+		if ( is_wp_error( $category_terms ) || empty( $category_terms ) || ! is_array( $category_terms ) ) {
+			return 0;
+		}
+
+		$deepest_term_id = 0;
+		$max_depth       = -1;
+
+		foreach ( $category_terms as $term ) {
+			if ( ! $term instanceof \WP_Term ) {
+				continue;
+			}
+
+			$depth = $this->get_category_depth( (int) $term->term_id );
+
+			if ( $depth > $max_depth ) {
+				$max_depth       = $depth;
+				$deepest_term_id = (int) $term->term_id;
+			}
+		}
+
+		return $deepest_term_id;
+	}
+
+	/**
+	 * Depth of a category in its hierarchy (root = 0).
+	 *
+	 * @param int $term_id Category term ID.
+	 * @return int
+	 */
+	private function get_category_depth( int $term_id ): int {
+		$depth      = 0;
+		$current_id = $term_id;
+
+		while ( $current_id > 0 ) {
+			$term = get_term( $current_id, 'category' );
+
+			if ( is_wp_error( $term ) || ! $term instanceof \WP_Term ) {
+				break;
+			}
+
+			if ( (int) $term->parent > 0 ) {
+				++$depth;
+				$current_id = (int) $term->parent;
+				continue;
+			}
+
+			break;
+		}
+
+		return $depth;
 	}
 }
