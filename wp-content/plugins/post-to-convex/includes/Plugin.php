@@ -34,6 +34,7 @@ class Plugin {
 	public static function boot(): void {
 		Blocks::init();
 		PostMeta::init();
+		TermMeta::init();
 		RestApi::init();
 
 		if ( ! is_admin() ) {
@@ -41,5 +42,6 @@ class Plugin {
 		}
 
 		AdminSettings::init();
+		TaxonomyFields::init();
 	}
 }
