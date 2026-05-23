@@ -203,6 +203,32 @@ class RestApi {
 			);
 		}
 
+		$processed_categories = $response_body['categories'] ?? array();
+
+		foreach ( $processed_categories as $processed_category ) {
+			$remote_id   = $processed_category['id'] ?? '';
+			$original_id = (int) $processed_category['originalId'] ?? 0;
+
+			if ( '' === $remote_id || $original_id <= 0 ) {
+				continue;
+			}
+
+			update_term_meta( $original_id, TermMeta::REMOTE_ID_META_KEY, $remote_id );
+		}
+
+		$processed_tags = $response_body['tags'] ?? array();
+
+		foreach ( $processed_tags as $processed_tag ) {
+			$remote_id   = $processed_tag['id'] ?? '';
+			$original_id = (int) $processed_tag['originalId'] ?? 0;
+
+			if ( '' === $remote_id || $original_id <= 0 ) {
+				continue;
+			}
+
+			update_term_meta( $original_id, TermMeta::REMOTE_ID_META_KEY, $remote_id );
+		}
+
 		update_post_meta( $post_id, PostMeta::REMOTE_ID_META_KEY, $response_body['id'] );
 
 		return new \WP_REST_Response(
@@ -330,6 +356,32 @@ class RestApi {
 				),
 				$response_code
 			);
+		}
+
+		$processed_categories = $response_body['categories'] ?? array();
+
+		foreach ( $processed_categories as $processed_category ) {
+			$remote_id   = $processed_category['id'] ?? '';
+			$original_id = (int) $processed_category['originalId'] ?? 0;
+
+			if ( '' === $remote_id || $original_id <= 0 ) {
+				continue;
+			}
+
+			update_term_meta( $original_id, TermMeta::REMOTE_ID_META_KEY, $remote_id );
+		}
+
+		$processed_tags = $response_body['tags'] ?? array();
+
+		foreach ( $processed_tags as $processed_tag ) {
+			$remote_id   = $processed_tag['id'] ?? '';
+			$original_id = (int) $processed_tag['originalId'] ?? 0;
+
+			if ( '' === $remote_id || $original_id <= 0 ) {
+				continue;
+			}
+
+			update_term_meta( $original_id, TermMeta::REMOTE_ID_META_KEY, $remote_id );
 		}
 
 		return new \WP_REST_Response(
