@@ -27,47 +27,105 @@ class TaxonomyFields {
 	private const NOTICE_TRANSIENT_TTL = 45;
 
 	/**
+	 * Supported taxonomies and Convex API configuration.
+	 *
+	 * @var array<string, array{api_segment: string, label: string}>
+	 */
+	private const TAXONOMY_SYNC = array(
+		'category' => array(
+			'api_segment' => 'categories',
+			'label'       => 'category',
+		),
+		'post_tag' => array(
+			'api_segment' => 'tags',
+			'label'       => 'tag',
+		),
+	);
+
+	/**
 	 * Initialize the taxonomy fields.
 	 */
 	public static function init(): void {
 		$self = new self();
 
-		// Register the taxonomy fields for the supported taxonomies.
-		add_action( 'category_add_form_fields', array( $self, 'render_add_form_fields' ), 10, 0 );
-		add_action( 'category_edit_form_fields', array( $self, 'render_edit_form_fields' ), 10, 1 );
+		foreach ( array_keys( self::TAXONOMY_SYNC ) as $taxonomy ) {
+			add_action(
+				"{$taxonomy}_add_form_fields",
+				static function () use ( $self, $taxonomy ): void {
+					$self->render_add_form_fields( $taxonomy );
+				},
+				10,
+				0
+			);
 
-		// Handle the category fields submission.
-		add_action( 'created_category', array( $self, 'handle_category_in_convex' ), 10, 1 );
-		add_action( 'edited_category', array( $self, 'handle_category_in_convex' ), 10, 1 );
+			add_action(
+				"{$taxonomy}_edit_form_fields",
+				static function ( \WP_Term $term ) use ( $self, $taxonomy ): void {
+					$self->render_edit_form_fields( $term, $taxonomy );
+				},
+				10,
+				1
+			);
+
+			add_action(
+				"created_{$taxonomy}",
+				static function ( int $term_id ) use ( $self, $taxonomy ): void {
+					$self->handle_term_in_convex( $term_id, $taxonomy );
+				},
+				10,
+				1
+			);
+
+			add_action(
+				"edited_{$taxonomy}",
+				static function ( int $term_id ) use ( $self, $taxonomy ): void {
+					$self->handle_term_in_convex( $term_id, $taxonomy );
+				},
+				10,
+				1
+			);
+		}
 
 		add_action( 'admin_notices', array( $self, 'render_queued_notice' ) );
 	}
 
 	/**
-	 * Transient key for the current user's queued notice.
+	 * Transient key for the current user's queued notice on a taxonomy screen.
 	 *
+	 * @param string $taxonomy Taxonomy slug.
 	 * @return string
 	 */
-	private function get_notice_transient_key(): string {
-		return 'post_to_convex_taxonomy_notice_' . get_current_user_id();
+	private function get_notice_transient_key( string $taxonomy ): string {
+		return 'post_to_convex_taxonomy_notice_' . get_current_user_id() . '_' . $taxonomy;
 	}
 
 	/**
-	 * Queue an admin notice to show after redirect on the category screen.
+	 * Human-readable label for messages (e.g. "category", "tag").
 	 *
-	 * @param string $message Notice message (may contain limited HTML).
-	 * @param string $type    Notice type: success or error.
+	 * @param string $taxonomy Taxonomy slug.
+	 * @return string
+	 */
+	private function get_taxonomy_label( string $taxonomy ): string {
+		return self::TAXONOMY_SYNC[ $taxonomy ]['label'] ?? $taxonomy;
+	}
+
+	/**
+	 * Queue an admin notice to show after redirect on the taxonomy screen.
+	 *
+	 * @param string $taxonomy Taxonomy slug.
+	 * @param string $message  Notice message (may contain limited HTML).
+	 * @param string $type     Notice type: success or error.
 	 * @return void
 	 */
-	private function queue_notice( string $message, string $type ): void {
+	private function queue_notice( string $taxonomy, string $message, string $type ): void {
 		$user_id = get_current_user_id();
 
-		if ( ! $user_id ) {
+		if ( ! $user_id || ! isset( self::TAXONOMY_SYNC[ $taxonomy ] ) ) {
 			return;
 		}
 
 		set_transient(
-			$this->get_notice_transient_key(),
+			$this->get_notice_transient_key( $taxonomy ),
 			array(
 				'type'    => 'error' === $type ? 'error' : 'success',
 				'message' => $message,
@@ -116,39 +174,45 @@ class TaxonomyFields {
 	}
 
 	/**
-	 * Whether the current admin screen is the category list or single-term edit UI.
+	 * Whether the screen is the list or single-term edit UI for a supported taxonomy.
 	 *
-	 * @param \WP_Screen|null $screen Current screen.
+	 * @param \WP_Screen|null $screen   Current screen.
+	 * @param string          $taxonomy Taxonomy slug.
 	 * @return bool
 	 */
-	private function is_category_admin_screen( ?\WP_Screen $screen ): bool {
-		if ( ! $screen || 'category' !== $screen->taxonomy ) {
+	private function is_taxonomy_admin_screen( ?\WP_Screen $screen, string $taxonomy ): bool {
+		if ( ! $screen || ! isset( self::TAXONOMY_SYNC[ $taxonomy ] ) || $taxonomy !== $screen->taxonomy ) {
 			return false;
 		}
 
-		// edit-tags.php (list + add) and term.php (single term edit) share id edit-category.
 		return in_array( $screen->base, array( 'edit-tags', 'term' ), true );
 	}
 
 	/**
-	 * Display a queued notice on the category admin screen, then discard it.
+	 * Display a queued notice on the matching taxonomy admin screen, then discard it.
 	 *
 	 * @return void
 	 */
 	public function render_queued_notice(): void {
 		$screen = get_current_screen();
 
-		if ( ! $this->is_category_admin_screen( $screen ) ) {
+		if ( ! $screen || ! isset( self::TAXONOMY_SYNC[ $screen->taxonomy ] ) ) {
 			return;
 		}
 
-		$notice = get_transient( $this->get_notice_transient_key() );
+		$taxonomy = $screen->taxonomy;
+
+		if ( ! $this->is_taxonomy_admin_screen( $screen, $taxonomy ) ) {
+			return;
+		}
+
+		$notice = get_transient( $this->get_notice_transient_key( $taxonomy ) );
 
 		if ( ! is_array( $notice ) || empty( $notice['message'] ) ) {
 			return;
 		}
 
-		delete_transient( $this->get_notice_transient_key() );
+		delete_transient( $this->get_notice_transient_key( $taxonomy ) );
 
 		$type = 'error' === ( $notice['type'] ?? '' ) ? 'error' : 'success';
 
@@ -164,33 +228,36 @@ class TaxonomyFields {
 	/**
 	 * Render the taxonomy edit form fields.
 	 *
-	 * @param \WP_Term $term The term object.
+	 * @param \WP_Term $term     The term object.
+	 * @param string   $taxonomy Taxonomy slug.
 	 * @return void
 	 */
-	public function render_edit_form_fields( \WP_Term $term ): void {
+	public function render_edit_form_fields( \WP_Term $term, string $taxonomy ): void {
 		$remote_id = get_term_meta( $term->term_id, TermMeta::REMOTE_ID_META_KEY, true );
 
-		$this->render_taxonomy_fields_html( ! empty( $remote_id ), $remote_id, 'edit' );
+		$this->render_taxonomy_fields_html( $taxonomy, ! empty( $remote_id ), $remote_id, 'edit' );
 	}
 
 	/**
 	 * Render the taxonomy add form fields.
 	 *
+	 * @param string $taxonomy Taxonomy slug.
 	 * @return void
 	 */
-	public function render_add_form_fields(): void {
-		$this->render_taxonomy_fields_html( false, '', 'add' );
+	public function render_add_form_fields( string $taxonomy ): void {
+		$this->render_taxonomy_fields_html( $taxonomy, false, '', 'add' );
 	}
 
 	/**
 	 * Render the taxonomy fields HTML for add or edit screens.
 	 *
+	 * @param string $taxonomy      Taxonomy slug.
 	 * @param bool   $has_remote_id Whether the term has a remote ID.
 	 * @param string $remote_id     The remote ID of the term.
 	 * @param string $layout        Form layout: add (div.form-field) or edit (table row).
 	 * @return void
 	 */
-	private function render_taxonomy_fields_html( bool $has_remote_id, string $remote_id, string $layout ): void {
+	private function render_taxonomy_fields_html( string $taxonomy, bool $has_remote_id, string $remote_id, string $layout ): void {
 		wp_nonce_field( 'post_to_convex_taxonomy_fields_action', 'post_to_convex_taxonomy_fields_nonce' );
 
 		if ( 'add' === $layout ) {
@@ -199,7 +266,7 @@ class TaxonomyFields {
 				<label for="post-to-convex">
 					<?php esc_html_e( 'Post to Convex', 'post-to-convex' ); ?>
 				</label>
-				<?php $this->render_taxonomy_checkbox_and_description( $has_remote_id, $remote_id ); ?>
+				<?php $this->render_taxonomy_checkbox_and_description( $taxonomy, $has_remote_id, $remote_id ); ?>
 			</div>
 			<?php
 			return;
@@ -213,20 +280,22 @@ class TaxonomyFields {
 				</label>
 			</th>
 			<td>
-				<?php $this->render_taxonomy_checkbox_and_description( $has_remote_id, $remote_id ); ?>
+				<?php $this->render_taxonomy_checkbox_and_description( $taxonomy, $has_remote_id, $remote_id ); ?>
 			</td>
 		</tr>
 		<?php
 	}
 
 	/**
-	 * Checkbox and description shared by add and edit category forms.
+	 * Checkbox and description shared by add and edit taxonomy forms.
 	 *
+	 * @param string $taxonomy      Taxonomy slug.
 	 * @param bool   $has_remote_id Whether the term has a remote ID.
 	 * @param string $remote_id     The remote ID of the term.
 	 * @return void
 	 */
-	private function render_taxonomy_checkbox_and_description( bool $has_remote_id, string $remote_id ): void {
+	private function render_taxonomy_checkbox_and_description( string $taxonomy, bool $has_remote_id, string $remote_id ): void {
+		$label = $this->get_taxonomy_label( $taxonomy );
 		?>
 		<input
 			type="checkbox"
@@ -237,7 +306,13 @@ class TaxonomyFields {
 			<?php checked( $has_remote_id, true ); ?>
 		/>
 		<p class="description" id="post-to-convex-description">
-			<?php esc_html_e( 'Check this box to post this category to Convex.', 'post-to-convex' ); ?>
+			<?php
+			printf(
+				/* translators: %s: taxonomy label (e.g. category, tag) */
+				esc_html__( 'Check this box to post this %s to Convex.', 'post-to-convex' ),
+				esc_html( $label )
+			);
+			?>
 
 			<?php if ( $has_remote_id ) : ?>
 				<br>
@@ -251,13 +326,38 @@ class TaxonomyFields {
 	}
 
 	/**
+	 * Build the Convex API request body for a term create, update, or delete.
+	 *
+	 * @param \WP_Term $term      WordPress term.
+	 * @param string   $taxonomy  Taxonomy slug.
+	 * @param bool     $is_delete Whether this is a delete operation.
+	 * @return array<string, int|string>
+	 */
+	private function build_convex_request_body( \WP_Term $term, string $taxonomy, bool $is_delete ): array {
+		if ( $is_delete ) {
+			return TermConvexPayload::delete( (int) $term->term_id );
+		}
+
+		if ( 'post_tag' === $taxonomy ) {
+			return TermConvexPayload::tag( $term );
+		}
+
+		return TermConvexPayload::category( $term );
+	}
+
+	/**
 	 * Performs a PUT, PATCH or DELETE request to the Convex API to create,
 	 * update or delete the taxonomy term in Convex.
 	 *
-	 * @param int $term_id The term ID.
+	 * @param int    $term_id  The term ID.
+	 * @param string $taxonomy Taxonomy slug.
 	 * @return void
 	 */
-	public function handle_category_in_convex( int $term_id ): void {
+	public function handle_term_in_convex( int $term_id, string $taxonomy ): void {
+		if ( ! isset( self::TAXONOMY_SYNC[ $taxonomy ] ) ) {
+			return;
+		}
+
 		if ( ! isset( $_POST['post_to_convex_taxonomy_fields_nonce'] ) ) {
 			return;
 		}
@@ -268,10 +368,14 @@ class TaxonomyFields {
 			return;
 		}
 
+		$label       = $this->get_taxonomy_label( $taxonomy );
+		$api_segment = self::TAXONOMY_SYNC[ $taxonomy ]['api_segment'];
+
 		$api_url = get_option( AdminSettings::OPTION_URL );
 
 		if ( ! $api_url ) {
 			$this->queue_notice(
+				$taxonomy,
 				$this->settings_error_message(
 					__( 'Convex Cloud URL is not configured.', 'post-to-convex' )
 				),
@@ -284,6 +388,7 @@ class TaxonomyFields {
 
 		if ( ! $api_secret ) {
 			$this->queue_notice(
+				$taxonomy,
 				$this->settings_error_message(
 					__( 'Convex secret is not configured.', 'post-to-convex' )
 				),
@@ -292,11 +397,16 @@ class TaxonomyFields {
 			return;
 		}
 
-		$term = get_term( $term_id, 'category' );
+		$term = get_term( $term_id, $taxonomy );
 
 		if ( is_wp_error( $term ) || ! $term instanceof \WP_Term ) {
 			$this->queue_notice(
-				__( 'Category could not be loaded.', 'post-to-convex' ),
+				$taxonomy,
+				sprintf(
+					/* translators: %s: taxonomy label (e.g. category, tag) */
+					__( '%s could not be loaded.', 'post-to-convex' ),
+					ucfirst( $label )
+				),
 				'error'
 			);
 			return;
@@ -306,44 +416,24 @@ class TaxonomyFields {
 		$remote_id      = get_term_meta( $term_id, TermMeta::REMOTE_ID_META_KEY, true );
 		$is_delete      = false;
 
-		// If the post to convex checkbox was checked, create or update the term in Convex.
 		if ( $post_to_convex ) {
-			// If a remote id was found, update the term in Convex.
-			// Otherwise, create the term in Convex.
 			$request_method = $remote_id ? 'PATCH' : 'PUT';
-
-			$convex_request_body = array(
-				'originalId'       => (int) $term->term_id,
-				'name'             => $term->name,
-				'slug'             => $term->slug,
-				'description'      => $term->description,
-				'parentOriginalId' => (int) $term->parent,
-			);
 		} elseif ( $remote_id ) {
-			// If a remote id was found but no post to convex checkbox was checked,
-			// delete the term from Convex.
 			$request_method = 'DELETE';
-
-			$convex_request_body = array(
-				'originalId' => (int) $term->term_id,
-			);
-
-			$is_delete = true;
+			$is_delete      = true;
 		} else {
-			// Do nothing.
 			return;
 		}
 
-		$convex_request_headers = array(
-			'Authorization' => sprintf( 'Bearer %s', $api_secret ),
-			'Content-Type'  => 'application/json',
-		);
+		$convex_request_body = $this->build_convex_request_body( $term, $taxonomy, $is_delete );
 
-		// Post to Convex.
 		$convex_request = wp_remote_request(
-			sprintf( '%s/api/postToConvex/v1/categories', $api_url ),
+			sprintf( '%s/api/postToConvex/v1/%s', $api_url, $api_segment ),
 			array(
-				'headers' => $convex_request_headers,
+				'headers' => array(
+					'Authorization' => sprintf( 'Bearer %s', $api_secret ),
+					'Content-Type'  => 'application/json',
+				),
 				'body'    => wp_json_encode( $convex_request_body ),
 				'method'  => $request_method,
 			)
@@ -351,6 +441,7 @@ class TaxonomyFields {
 
 		if ( is_wp_error( $convex_request ) ) {
 			$this->queue_notice(
+				$taxonomy,
 				sprintf(
 					/* translators: %s: error message from wp_remote_request */
 					__( 'Could not reach Convex: %s', 'post-to-convex' ),
@@ -371,9 +462,11 @@ class TaxonomyFields {
 
 		if ( 200 !== $response_code ) {
 			$this->queue_notice(
+				$taxonomy,
 				sprintf(
-					/* translators: %s: error detail from the Convex API */
-					__( 'Failed to sync category with Convex: %s', 'post-to-convex' ),
+					/* translators: 1: taxonomy label, 2: error detail from the Convex API */
+					__( 'Failed to sync %1$s with Convex: %2$s', 'post-to-convex' ),
+					$label,
 					$this->format_api_error( $response_body )
 				),
 				'error'
@@ -384,7 +477,12 @@ class TaxonomyFields {
 		if ( $is_delete ) {
 			delete_term_meta( $term_id, TermMeta::REMOTE_ID_META_KEY );
 			$this->queue_notice(
-				__( 'Category removed from Convex successfully.', 'post-to-convex' ),
+				$taxonomy,
+				sprintf(
+					/* translators: %s: taxonomy label (e.g. category, tag) */
+					__( '%s removed from Convex successfully.', 'post-to-convex' ),
+					ucfirst( $label )
+				),
 				'success'
 			);
 			return;
@@ -392,7 +490,12 @@ class TaxonomyFields {
 
 		if ( ! is_array( $response_body ) || empty( $response_body['id'] ) ) {
 			$this->queue_notice(
-				__( 'Convex did not return a category ID.', 'post-to-convex' ),
+				$taxonomy,
+				sprintf(
+					/* translators: %s: taxonomy label (e.g. category, tag) */
+					__( 'Convex did not return a %s ID.', 'post-to-convex' ),
+					$label
+				),
 				'error'
 			);
 			return;
@@ -402,14 +505,24 @@ class TaxonomyFields {
 
 		if ( 'PUT' === $request_method ) {
 			$this->queue_notice(
-				__( 'Category posted to Convex successfully.', 'post-to-convex' ),
+				$taxonomy,
+				sprintf(
+					/* translators: %s: taxonomy label (e.g. category, tag) */
+					__( '%s posted to Convex successfully.', 'post-to-convex' ),
+					ucfirst( $label )
+				),
 				'success'
 			);
 			return;
 		}
 
 		$this->queue_notice(
-			__( 'Category updated in Convex successfully.', 'post-to-convex' ),
+			$taxonomy,
+			sprintf(
+				/* translators: %s: taxonomy label (e.g. category, tag) */
+				__( '%s updated in Convex successfully.', 'post-to-convex' ),
+				ucfirst( $label )
+			),
 			'success'
 		);
 	}

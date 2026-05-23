@@ -517,7 +517,7 @@ class RestApi {
 		if ( is_array( $category_terms ) ) {
 			foreach ( $category_terms as $term ) {
 				if ( $term instanceof \WP_Term ) {
-					$categories[] = $this->format_category_term( $term );
+					$categories[] = TermConvexPayload::category( $term );
 				}
 			}
 		}
@@ -548,7 +548,7 @@ class RestApi {
 
 		return array(
 			'categories'                  => array(
-				$this->format_category_term( $default_term ),
+				TermConvexPayload::category( $default_term ),
 			),
 			'permalinkCategoryOriginalId' => (int) $default_term->term_id,
 		);
@@ -607,27 +607,6 @@ class RestApi {
 	}
 
 	/**
-	 * Map a WordPress category term to the Convex category shape.
-	 *
-	 * @param \WP_Term $term Category term.
-	 * @return array<string, int|string>
-	 */
-	private function format_category_term( \WP_Term $term ): array {
-		$category = array(
-			'originalId'  => (int) $term->term_id,
-			'name'        => $term->name,
-			'slug'        => $term->slug,
-			'description' => $term->description,
-		);
-
-		if ( (int) $term->parent > 0 ) {
-			$category['parentOriginalId'] = (int) $term->parent;
-		}
-
-		return $category;
-	}
-
-	/**
 	 * Map post tags to the Convex tag shape.
 	 *
 	 * @param int $post_id WordPress post ID.
@@ -644,12 +623,7 @@ class RestApi {
 
 		foreach ( $tag_terms as $term ) {
 			if ( $term instanceof \WP_Term ) {
-				$tags[] = array(
-					'originalId'  => (int) $term->term_id,
-					'name'        => $term->name,
-					'slug'        => $term->slug,
-					'description' => $term->description,
-				);
+				$tags[] = TermConvexPayload::tag( $term );
 			}
 		}
 
