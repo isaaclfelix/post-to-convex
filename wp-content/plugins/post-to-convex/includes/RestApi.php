@@ -614,9 +614,10 @@ class RestApi {
 	 */
 	private function format_category_term( \WP_Term $term ): array {
 		$category = array(
-			'originalId' => (int) $term->term_id,
-			'name'       => $term->name,
-			'slug'       => $term->slug,
+			'originalId'  => (int) $term->term_id,
+			'name'        => $term->name,
+			'slug'        => $term->slug,
+			'description' => $term->description,
 		);
 
 		if ( (int) $term->parent > 0 ) {
@@ -644,9 +645,10 @@ class RestApi {
 		foreach ( $tag_terms as $term ) {
 			if ( $term instanceof \WP_Term ) {
 				$tags[] = array(
-					'originalId' => (int) $term->term_id,
-					'name'       => $term->name,
-					'slug'       => $term->slug,
+					'originalId'  => (int) $term->term_id,
+					'name'        => $term->name,
+					'slug'        => $term->slug,
+					'description' => $term->description,
 				);
 			}
 		}
