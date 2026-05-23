@@ -86,6 +86,8 @@ class TaxonomyFields {
 			);
 		}
 
+		add_action( 'pre_delete_term', array( $self, 'handle_term_deleted_in_convex' ), 10, 2 );
+
 		add_action( 'admin_notices', array( $self, 'render_queued_notice' ) );
 	}
 
@@ -326,6 +328,31 @@ class TaxonomyFields {
 	}
 
 	/**
+	 * Delete a synced term from Convex when it is removed in WordPress.
+	 *
+	 * @param int    $term_id  WordPress term ID.
+	 * @param string $taxonomy Taxonomy slug.
+	 * @return void
+	 */
+	public function handle_term_deleted_in_convex( int $term_id, string $taxonomy ): void {
+		if ( ! isset( self::TAXONOMY_SYNC[ $taxonomy ] ) ) {
+			return;
+		}
+
+		if ( ! current_user_can( 'delete_term', $term_id ) ) {
+			return;
+		}
+
+		$remote_id = get_term_meta( $term_id, TermMeta::REMOTE_ID_META_KEY, true );
+
+		if ( ! $remote_id ) {
+			return;
+		}
+
+		$this->delete_term_in_convex( $term_id, $taxonomy, true );
+	}
+
+	/**
 	 * Build the Convex API request body for a term create, update, or delete.
 	 *
 	 * @param \WP_Term $term      WordPress term.
@@ -414,18 +441,28 @@ class TaxonomyFields {
 
 		$post_to_convex = (bool) sanitize_text_field( wp_unslash( $_POST['post-to-convex'] ?? '0' ) );
 		$remote_id      = get_term_meta( $term_id, TermMeta::REMOTE_ID_META_KEY, true );
-		$is_delete      = false;
 
 		if ( $post_to_convex ) {
 			$request_method = $remote_id ? 'PATCH' : 'PUT';
 		} elseif ( $remote_id ) {
-			$request_method = 'DELETE';
-			$is_delete      = true;
+			if ( $this->delete_term_in_convex( $term_id, $taxonomy, true ) ) {
+				delete_term_meta( $term_id, TermMeta::REMOTE_ID_META_KEY );
+				$this->queue_notice(
+					$taxonomy,
+					sprintf(
+						/* translators: %s: taxonomy label (e.g. category, tag) */
+						__( '%s removed from Convex successfully.', 'post-to-convex' ),
+						ucfirst( $label )
+					),
+					'success'
+				);
+			}
+			return;
 		} else {
 			return;
 		}
 
-		$convex_request_body = $this->build_convex_request_body( $term, $taxonomy, $is_delete );
+		$convex_request_body = $this->build_convex_request_body( $term, $taxonomy, false );
 
 		$convex_request = wp_remote_request(
 			sprintf( '%s/api/postToConvex/v1/%s', $api_url, $api_segment ),
@@ -474,20 +511,6 @@ class TaxonomyFields {
 			return;
 		}
 
-		if ( $is_delete ) {
-			delete_term_meta( $term_id, TermMeta::REMOTE_ID_META_KEY );
-			$this->queue_notice(
-				$taxonomy,
-				sprintf(
-					/* translators: %s: taxonomy label (e.g. category, tag) */
-					__( '%s removed from Convex successfully.', 'post-to-convex' ),
-					ucfirst( $label )
-				),
-				'success'
-			);
-			return;
-		}
-
 		if ( ! is_array( $response_body ) || empty( $response_body['id'] ) ) {
 			$this->queue_notice(
 				$taxonomy,
@@ -525,5 +548,105 @@ class TaxonomyFields {
 			),
 			'success'
 		);
+	}
+
+	/**
+	 * DELETE a term from Convex using its WordPress term ID as originalId.
+	 *
+	 * @param int    $term_id      WordPress term ID.
+	 * @param string $taxonomy     Taxonomy slug.
+	 * @param bool   $queue_errors Whether to queue admin notices on failure.
+	 * @return bool True when Convex returned HTTP 200.
+	 */
+	private function delete_term_in_convex( int $term_id, string $taxonomy, bool $queue_errors ): bool {
+		if ( ! isset( self::TAXONOMY_SYNC[ $taxonomy ] ) ) {
+			return false;
+		}
+
+		$label       = $this->get_taxonomy_label( $taxonomy );
+		$api_segment = self::TAXONOMY_SYNC[ $taxonomy ]['api_segment'];
+
+		$api_url = get_option( AdminSettings::OPTION_URL );
+
+		if ( ! $api_url ) {
+			if ( $queue_errors ) {
+				$this->queue_notice(
+					$taxonomy,
+					$this->settings_error_message(
+						__( 'Convex Cloud URL is not configured.', 'post-to-convex' )
+					),
+					'error'
+				);
+			}
+			return false;
+		}
+
+		$api_secret = SecretStore::get_plaintext_secret();
+
+		if ( ! $api_secret ) {
+			if ( $queue_errors ) {
+				$this->queue_notice(
+					$taxonomy,
+					$this->settings_error_message(
+						__( 'Convex secret is not configured.', 'post-to-convex' )
+					),
+					'error'
+				);
+			}
+			return false;
+		}
+
+		$convex_request = wp_remote_request(
+			sprintf( '%s/api/postToConvex/v1/%s', $api_url, $api_segment ),
+			array(
+				'method'  => 'DELETE',
+				'headers' => array(
+					'Authorization' => sprintf( 'Bearer %s', $api_secret ),
+					'Content-Type'  => 'application/json',
+				),
+				'body'    => wp_json_encode( TermConvexPayload::delete( $term_id ) ),
+			)
+		);
+
+		if ( is_wp_error( $convex_request ) ) {
+			if ( $queue_errors ) {
+				$this->queue_notice(
+					$taxonomy,
+					sprintf(
+						/* translators: %s: error message from wp_remote_request */
+						__( 'Could not reach Convex: %s', 'post-to-convex' ),
+						$convex_request->get_error_message()
+					),
+					'error'
+				);
+			}
+			return false;
+		}
+
+		$response_code     = wp_remote_retrieve_response_code( $convex_request );
+		$raw_response_body = wp_remote_retrieve_body( $convex_request );
+		$response_body     = json_decode( $raw_response_body, true );
+
+		if ( is_null( $response_body ) ) {
+			$response_body = $raw_response_body;
+		}
+
+		if ( 200 !== $response_code ) {
+			if ( $queue_errors ) {
+				$this->queue_notice(
+					$taxonomy,
+					sprintf(
+						/* translators: 1: taxonomy label, 2: error detail from the Convex API */
+						__( 'Failed to remove %1$s from Convex: %2$s', 'post-to-convex' ),
+						$label,
+						$this->format_api_error( $response_body )
+					),
+					'error'
+				);
+			}
+			return false;
+		}
+
+		return true;
 	}
 }
