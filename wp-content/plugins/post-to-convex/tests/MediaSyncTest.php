@@ -75,6 +75,43 @@ class MediaSyncTest extends WP_UnitTestCase {
 	}
 
 	/**
+	 * PATCH body includes mediaId and all metadata strings (empty when unset).
+	 *
+	 * @return void
+	 */
+	public function test_build_media_metadata_patch_body_includes_all_fields(): void {
+		$attachment_id = self::factory()->attachment->create(
+			array(
+				'post_mime_type' => 'image/jpeg',
+				'post_title'     => '',
+				'post_excerpt'   => '',
+				'post_content'   => '',
+			)
+		);
+
+		$attachment = get_post( $attachment_id );
+		$this->assertInstanceOf( \WP_Post::class, $attachment );
+
+		$sync = new MediaSync();
+		$body = $sync->build_media_metadata_patch_body( $attachment, 'convexMedia123' );
+
+		$this->assertSame(
+			array(
+				'mediaId'     => 'convexMedia123',
+				'alt'         => '',
+				'title'       => '',
+				'caption'     => '',
+				'description' => '',
+			),
+			$body
+		);
+		$this->assertSame(
+			array( 'mediaId', 'alt', 'title', 'caption', 'description' ),
+			array_keys( $body )
+		);
+	}
+
+	/**
 	 * PHPUnit environments for this plugin include the cURL extension.
 	 *
 	 * @return void

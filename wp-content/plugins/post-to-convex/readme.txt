@@ -21,7 +21,7 @@ Post to Convex connects your WordPress site to a [Convex](https://www.convex.dev
 * **Encrypted secret storage** — The Convex secret is stored with AES-256-GCM; key material is derived from WordPress salts in `wp-config.php`, not from the database.
 * **REST API proxy** — Authenticated routes under `post-to-convex/v1` load post data from WordPress and forward it to your Convex HTTP API.
 * **Post meta** — After a successful create, the remote document id is saved in `post_to_convex_remote_id` and exposed to the REST API for the editor.
-* **Media sync** — Image attachments (JPEG, PNG, WebP, GIF) upload to Convex automatically from the media library or when set as a featured image. Deleting an attachment removes it from Convex. The Convex `mediaId` is stored in `post_to_convex_media_id` on the attachment. Post sync includes `featuredImageMediaId` when the post has a featured image.
+* **Media sync** — Image attachments (JPEG, PNG, WebP, GIF) upload to Convex automatically from the media library or when set as a featured image. Editing attachment metadata (alt, title, caption, description) in the media library PATCHes Convex when `post_to_convex_media_id` is already set. Deleting an attachment removes it from Convex. Post sync includes `featuredImageMediaId` and uploads an unsynced featured image via `ensure_attachment_synced`.
 
 = Requirements =
 
@@ -45,6 +45,7 @@ Your Convex app should accept authenticated requests at:
 Media endpoint: `{CONVEX_CLOUD_URL}/api/postToConvex/v1/media`
 
 * **Upload** — `PUT` with `multipart/form-data` (`file` plus optional `alt`, `title`, `caption`, `description`). Allowed types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`. Response: `{ "mediaId": "..." }`. WordPress sends this request with **native PHP cURL** and `CURLFile`, not `wp_remote_request`.
+* **Update metadata** — `PATCH` with JSON `{ "mediaId", "alt", "title", "caption", "description" }` (all required strings; use `""` when empty). Only updates metadata on an existing row; requires `post_to_convex_media_id` in WordPress. Sent via `wp_remote_request`.
 * **Delete** — `DELETE` with JSON `{ "mediaId": "<id>" }` (via `wp_remote_request`).
 
 Set the environment variable `POST_TO_CONVEX_SECRET` in Convex to the same value you save in WordPress. The plugin sends it as a `Bearer` token on outbound requests.
@@ -55,7 +56,7 @@ Convex media uploads are large `multipart/form-data` **PUT** requests. The plugi
 
 Instead, `MediaSync` uses PHP’s cURL API with `CURLFile` so libcurl reads the attachment from disk, builds a valid multipart body, and can force **HTTP/1.1** (`CURLOPT_HTTP_VERSION`). That combination matches how file uploads are expected to work and is what this plugin tests against.
 
-Post sync, taxonomy sync, and media **delete** continue to use `wp_remote_request()` with JSON bodies; only media **upload** requires cURL.
+Post sync, taxonomy sync, and media **PATCH** / **DELETE** continue to use `wp_remote_request()` with JSON bodies; only media **upload** requires cURL.
 
 = PHP components =
 
@@ -65,7 +66,7 @@ The plugin loads PHP classes via Composer PSR-4 autoloading (`PostToConvex` name
 * `PostToConvex\SecretStore` — Encrypt and decrypt the shared secret (`encrypt`, `decrypt`, `get_plaintext_secret`).
 * `PostToConvex\PostMeta` — Registers `post_to_convex_remote_id` for REST-enabled post types.
 * `PostToConvex\AttachmentMeta` — Registers `post_to_convex_media_id` on attachments.
-* `PostToConvex\MediaSync` — Uploads and deletes media in Convex on attachment hooks.
+* `PostToConvex\MediaSync` — Uploads, PATCHes metadata, and deletes media in Convex on attachment hooks.
 * `PostToConvex\RestApi` — Registers proxy routes and handlers.
 * `PostToConvex\Blocks` — Registers block metadata and block-editor assets (`build/editor.js` sidebar).
 
@@ -119,7 +120,7 @@ In post meta key `post_to_convex_remote_id`, readable in the editor when you hav
 
 = Where is the Convex media id stored? =
 
-On attachment posts, in meta key `post_to_convex_media_id`. Post sync sends `featuredImageMediaId` from that meta when the post has a featured image.
+On attachment posts, in meta key `post_to_convex_media_id`. Post sync sends `featuredImageMediaId` from that meta when the post has a featured image, and uploads the featured image first when the meta is missing. Editing attachment metadata alone does not upload pre-existing library images; only uploads, featured-image hooks, or post sync create Convex rows.
 
 = Does the plugin work without the cURL extension? =
 

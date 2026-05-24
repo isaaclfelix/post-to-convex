@@ -15,12 +15,12 @@ namespace PostToConvex;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Uploads and deletes media in Convex when attachments change in WordPress.
+ * Syncs media to Convex: PUT upload, PATCH metadata (when synced), DELETE.
  *
  * Media uploads require the PHP cURL extension with CURLFile support. WordPress
  * wp_remote_request() is not used for multipart PUT uploads because buffering
  * large bodies through the HTTP API layer proved unreliable (HTTP/2 resets,
- * cURL error 18). Deletes still use wp_remote_request with JSON bodies.
+ * cURL error 18). Metadata PATCH and DELETE use wp_remote_request with JSON.
  */
 class MediaSync {
 
@@ -59,6 +59,7 @@ class MediaSync {
 		$self = new self();
 		add_action( 'add_attachment', array( $self, 'handle_add_attachment' ), 10, 1 );
 		add_action( 'rest_after_insert_attachment', array( $self, 'handle_rest_after_insert_attachment' ), 10, 3 );
+		add_action( 'edit_attachment', array( $self, 'handle_edit_attachment' ), 10, 1 );
 		add_action( 'delete_attachment', array( $self, 'handle_delete_attachment' ), 10, 1 );
 		add_action( 'set_post_thumbnail', array( $self, 'handle_set_post_thumbnail' ), 10, 3 );
 	}
@@ -96,12 +97,13 @@ class MediaSync {
 	}
 
 	/**
-	 * Upload attachments created via the REST API (block editor and modern media library).
+	 * Sync attachments created or updated via the REST API (media library).
 	 *
 	 * REST uploads call wp_insert_attachment() with $fire_after_hooks = false, so
-	 * add_attachment never runs for those requests.
+	 * add_attachment never runs for those requests. Updates PATCH metadata when a
+	 * Convex media id already exists.
 	 *
-	 * @param \WP_Post         $attachment Inserted attachment.
+	 * @param \WP_Post         $attachment Inserted or updated attachment.
 	 * @param \WP_REST_Request $request    REST request (unused).
 	 * @param bool             $creating   True when creating a new attachment.
 	 * @return void
@@ -109,11 +111,29 @@ class MediaSync {
 	public function handle_rest_after_insert_attachment( \WP_Post $attachment, \WP_REST_Request $request, bool $creating ): void {
 		unset( $request );
 
-		if ( ! $creating ) {
+		if ( $creating ) {
+			$this->maybe_upload_attachment( (int) $attachment->ID );
 			return;
 		}
 
-		$this->maybe_upload_attachment( (int) $attachment->ID );
+		$this->maybe_patch_attachment_metadata( (int) $attachment->ID );
+	}
+
+	/**
+	 * PATCH metadata when an attachment is edited outside the REST API.
+	 *
+	 * REST updates are handled by handle_rest_after_insert_attachment to avoid
+	 * duplicate PATCH requests (edit_attachment also runs for REST saves).
+	 *
+	 * @param int $attachment_id WordPress attachment post ID.
+	 * @return void
+	 */
+	public function handle_edit_attachment( int $attachment_id ): void {
+		if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+			return;
+		}
+
+		$this->maybe_patch_attachment_metadata( $attachment_id );
 	}
 
 	/**
@@ -390,6 +410,112 @@ class MediaSync {
 			'body'  => (string) $response_body,
 			'error' => null,
 		);
+	}
+
+	/**
+	 * PATCH attachment metadata in Convex when the attachment is already synced.
+	 *
+	 * @param int $attachment_id WordPress attachment post ID.
+	 * @return void
+	 */
+	private function maybe_patch_attachment_metadata( int $attachment_id ): void {
+		if ( $this->syncing ) {
+			return;
+		}
+
+		if ( ! $this->can_sync_attachment( $attachment_id ) ) {
+			return;
+		}
+
+		$media_id = get_post_meta( $attachment_id, AttachmentMeta::MEDIA_ID_META_KEY, true );
+
+		if ( ! is_string( $media_id ) || '' === $media_id ) {
+			return;
+		}
+
+		$config = $this->get_api_config();
+
+		if ( null === $config ) {
+			return;
+		}
+
+		$attachment = get_post( $attachment_id );
+
+		if ( ! $attachment instanceof \WP_Post ) {
+			return;
+		}
+
+		$this->syncing = true;
+
+		try {
+			$this->patch_media_metadata_in_convex(
+				$this->build_media_metadata_patch_body( $attachment, $media_id )
+			);
+		} finally {
+			$this->syncing = false;
+		}
+	}
+
+	/**
+	 * Build the JSON body for a Convex media metadata PATCH.
+	 *
+	 * @param \WP_Post $attachment Attachment post object.
+	 * @param string   $media_id   Convex media document id.
+	 * @return array{mediaId: string, alt: string, title: string, caption: string, description: string}
+	 */
+	public function build_media_metadata_patch_body( \WP_Post $attachment, string $media_id ): array {
+		$fields = $this->get_attachment_form_fields( $attachment );
+
+		return array(
+			'mediaId'     => $media_id,
+			'alt'         => $fields['alt'],
+			'title'       => $fields['title'],
+			'caption'     => $fields['caption'],
+			'description' => $fields['description'],
+		);
+	}
+
+	/**
+	 * PATCH metadata on an existing Convex media row.
+	 *
+	 * @param array{mediaId: string, alt: string, title: string, caption: string, description: string} $body Request body.
+	 * @return void
+	 */
+	private function patch_media_metadata_in_convex( array $body ): void {
+		$config = $this->get_api_config();
+
+		if ( null === $config ) {
+			return;
+		}
+
+		$convex_request = wp_remote_request(
+			$config['url'] . self::MEDIA_API_PATH,
+			array(
+				'method'  => 'PATCH',
+				'headers' => array(
+					'Authorization' => sprintf( 'Bearer %s', $config['secret'] ),
+					'Content-Type'  => 'application/json',
+				),
+				'body'    => wp_json_encode( $body ),
+			)
+		);
+
+		if ( is_wp_error( $convex_request ) ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			error_log( 'Post to Convex: media metadata patch failed: ' . $convex_request->get_error_message() );
+			return;
+		}
+
+		$response_code = wp_remote_retrieve_response_code( $convex_request );
+
+		if ( 200 !== $response_code ) {
+			$response_body = json_decode( wp_remote_retrieve_body( $convex_request ), true );
+			$error_detail  = is_array( $response_body ) && isset( $response_body['error'] )
+				? (string) $response_body['error']
+				: 'HTTP ' . (string) $response_code;
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			error_log( 'Post to Convex: media metadata patch failed: ' . $error_detail );
+		}
 	}
 
 	/**
