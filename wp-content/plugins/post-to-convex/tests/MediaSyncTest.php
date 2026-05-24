@@ -13,7 +13,7 @@ use PostToConvex\MediaSync;
 use WP_UnitTestCase;
 
 /**
- * Tests MIME allowlist, multipart body construction, and attachment field mapping.
+ * Tests MIME allowlist, cURL availability, and attachment field mapping.
  */
 class MediaSyncTest extends WP_UnitTestCase {
 
@@ -75,59 +75,11 @@ class MediaSyncTest extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Multipart body includes ordered text fields and a file part.
+	 * PHPUnit environments for this plugin include the cURL extension.
 	 *
 	 * @return void
 	 */
-	public function test_build_multipart_body_includes_fields_and_file_part(): void {
-		$file_path = wp_tempnam( 'media-sync-test' );
-		$this->assertNotFalse( $file_path );
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture write.
-		file_put_contents( $file_path, 'fake-image-bytes' );
-
-		$sync = new MediaSync();
-		$body = $sync->build_multipart_body(
-			array(
-				'alt'         => 'Alt',
-				'title'       => 'Title',
-				'caption'     => 'Caption',
-				'description' => 'Description',
-			),
-			$file_path,
-			'image/jpeg',
-			'test-image.jpg'
-		);
-
-		wp_delete_file( $file_path );
-
-		$this->assertArrayHasKey( 'body', $body );
-		$this->assertArrayHasKey( 'boundary', $body );
-		$this->assertNotSame( '', $body['boundary'] );
-
-		$payload = $body['body'];
-
-		$this->assertStringContainsString( 'name="alt"', $payload );
-		$this->assertStringContainsString( "Alt\r\n", $payload );
-		$this->assertStringContainsString( 'name="title"', $payload );
-		$this->assertStringContainsString( "Title\r\n", $payload );
-		$this->assertStringContainsString( 'name="caption"', $payload );
-		$this->assertStringContainsString( "Caption\r\n", $payload );
-		$this->assertStringContainsString( 'name="description"', $payload );
-		$this->assertStringContainsString( "Description\r\n", $payload );
-		$this->assertStringContainsString( 'name="file"; filename="test-image.jpg"', $payload );
-		$this->assertStringContainsString( 'Content-Type: image/jpeg', $payload );
-		$this->assertStringContainsString( 'fake-image-bytes', $payload );
-		$this->assertStringEndsWith( '--' . $body['boundary'] . "--\r\n", $payload );
-
-		$alt_position   = strpos( $payload, 'name="alt"' );
-		$title_position = strpos( $payload, 'name="title"' );
-		$file_position  = strpos( $payload, 'name="file"' );
-
-		$this->assertNotFalse( $alt_position );
-		$this->assertNotFalse( $title_position );
-		$this->assertNotFalse( $file_position );
-		$this->assertLessThan( $title_position, $alt_position );
-		$this->assertLessThan( $file_position, $title_position );
+	public function test_is_curl_available_in_test_environment(): void {
+		$this->assertTrue( MediaSync::is_curl_available() );
 	}
 }

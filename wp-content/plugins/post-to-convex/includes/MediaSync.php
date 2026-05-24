@@ -16,6 +16,11 @@ defined( 'ABSPATH' ) || exit;
 
 /**
  * Uploads and deletes media in Convex when attachments change in WordPress.
+ *
+ * Media uploads require the PHP cURL extension with CURLFile support. WordPress
+ * wp_remote_request() is not used for multipart PUT uploads because buffering
+ * large bodies through the HTTP API layer proved unreliable (HTTP/2 resets,
+ * cURL error 18). Deletes still use wp_remote_request with JSON bodies.
  */
 class MediaSync {
 
@@ -53,6 +58,7 @@ class MediaSync {
 	public static function init(): void {
 		$self = new self();
 		add_action( 'add_attachment', array( $self, 'handle_add_attachment' ), 10, 1 );
+		add_action( 'rest_after_insert_attachment', array( $self, 'handle_rest_after_insert_attachment' ), 10, 3 );
 		add_action( 'delete_attachment', array( $self, 'handle_delete_attachment' ), 10, 1 );
 		add_action( 'set_post_thumbnail', array( $self, 'handle_set_post_thumbnail' ), 10, 3 );
 	}
@@ -80,11 +86,34 @@ class MediaSync {
 	/**
 	 * Upload a new attachment to Convex when it is added to the media library.
 	 *
+	 * Covers legacy Plupload/async-upload flows where attachment hooks run normally.
+	 *
 	 * @param int $attachment_id WordPress attachment post ID.
 	 * @return void
 	 */
 	public function handle_add_attachment( int $attachment_id ): void {
 		$this->maybe_upload_attachment( $attachment_id );
+	}
+
+	/**
+	 * Upload attachments created via the REST API (block editor and modern media library).
+	 *
+	 * REST uploads call wp_insert_attachment() with $fire_after_hooks = false, so
+	 * add_attachment never runs for those requests.
+	 *
+	 * @param \WP_Post         $attachment Inserted attachment.
+	 * @param \WP_REST_Request $request    REST request (unused).
+	 * @param bool             $creating   True when creating a new attachment.
+	 * @return void
+	 */
+	public function handle_rest_after_insert_attachment( \WP_Post $attachment, \WP_REST_Request $request, bool $creating ): void {
+		unset( $request );
+
+		if ( ! $creating ) {
+			return;
+		}
+
+		$this->maybe_upload_attachment( (int) $attachment->ID );
 	}
 
 	/**
@@ -172,6 +201,12 @@ class MediaSync {
 			return null;
 		}
 
+		if ( ! self::is_curl_available() ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			error_log( 'Post to Convex: media upload skipped because the PHP cURL extension (CURLFile) is not available.' );
+			return null;
+		}
+
 		$file_path = get_attached_file( $attachment_id );
 
 		if ( ! is_string( $file_path ) || '' === $file_path || ! is_readable( $file_path ) ) {
@@ -191,37 +226,29 @@ class MediaSync {
 		}
 
 		$form_fields = $this->get_attachment_form_fields( $attachment );
-		$multipart   = $this->build_multipart_body(
-			$form_fields,
-			$file_path,
-			$mime_type,
-			basename( $file_path )
-		);
+		$filename    = basename( $file_path );
 
 		$this->syncing = true;
 
 		try {
-			$convex_request = wp_remote_request(
-				$config['url'] . self::MEDIA_API_PATH,
-				array(
-					'method'  => 'PUT',
-					'headers' => array(
-						'Authorization' => sprintf( 'Bearer %s', $config['secret'] ),
-						'Content-Type'  => 'multipart/form-data; boundary=' . $multipart['boundary'],
-					),
-					'body'    => $multipart['body'],
-					'timeout' => 60,
-				)
+			$request_url   = $config['url'] . self::MEDIA_API_PATH;
+			$upload_result = $this->send_media_upload(
+				$request_url,
+				$config['secret'],
+				$form_fields,
+				$file_path,
+				$mime_type,
+				$filename
 			);
 
-			if ( is_wp_error( $convex_request ) ) {
+			if ( null !== $upload_result['error'] ) {
 				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-				error_log( 'Post to Convex: media upload failed: ' . $convex_request->get_error_message() );
+				error_log( 'Post to Convex: media upload failed: ' . $upload_result['error'] );
 				return null;
 			}
 
-			$response_code = wp_remote_retrieve_response_code( $convex_request );
-			$response_body = json_decode( wp_remote_retrieve_body( $convex_request ), true );
+			$response_code = $upload_result['code'];
+			$response_body = json_decode( $upload_result['body'], true );
 
 			if ( 200 !== $response_code || ! is_array( $response_body ) || empty( $response_body['mediaId'] ) ) {
 				$error_detail = is_array( $response_body ) && isset( $response_body['error'] )
@@ -239,6 +266,130 @@ class MediaSync {
 		} finally {
 			$this->syncing = false;
 		}
+	}
+
+	/**
+	 * Send a multipart media upload to Convex.
+	 *
+	 * @param string               $request_url Request URL.
+	 * @param string               $secret      Bearer secret.
+	 * @param array<string,string> $form_fields Text fields for the multipart body.
+	 * @param string               $file_path   Path to the attachment file.
+	 * @param string               $mime_type   File MIME type.
+	 * @param string               $filename    Original filename.
+	 * @return array{code: int, body: string, error: string|null}
+	 */
+	private function send_media_upload(
+		string $request_url,
+		string $secret,
+		array $form_fields,
+		string $file_path,
+		string $mime_type,
+		string $filename
+	): array {
+		if ( ! self::is_curl_available() ) {
+			return array(
+				'code'  => 0,
+				'body'  => '',
+				'error' => 'PHP cURL extension (CURLFile) is required for media uploads.',
+			);
+		}
+
+		$result = $this->send_media_upload_via_curl(
+			$request_url,
+			$secret,
+			$form_fields,
+			$file_path,
+			$mime_type,
+			$filename
+		);
+
+		// Retry with only the file field when Convex returns 500 (handler/parser edge cases).
+		if ( 500 === $result['code'] ) {
+			$result = $this->send_media_upload_via_curl(
+				$request_url,
+				$secret,
+				array(),
+				$file_path,
+				$mime_type,
+				$filename
+			);
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Upload via native cURL and CURLFile so the client builds multipart correctly.
+	 *
+	 * @param string               $request_url Request URL.
+	 * @param string               $secret      Bearer secret.
+	 * @param array<string,string> $form_fields Text fields for the multipart body.
+	 * @param string               $file_path   Path to the attachment file.
+	 * @param string               $mime_type   File MIME type.
+	 * @param string               $filename    Original filename.
+	 * @return array{code: int, body: string, error: string|null}
+	 */
+	private function send_media_upload_via_curl(
+		string $request_url,
+		string $secret,
+		array $form_fields,
+		string $file_path,
+		string $mime_type,
+		string $filename
+	): array {
+		$post_fields = array(
+			'file' => new \CURLFile( $file_path, $mime_type, $filename ),
+		);
+
+		foreach ( $form_fields as $name => $value ) {
+			if ( '' !== $value ) {
+				$post_fields[ $name ] = $value;
+			}
+		}
+
+		$curl_handle = curl_init( $request_url );
+
+		if ( false === $curl_handle ) {
+			return array(
+				'code'  => 0,
+				'body'  => '',
+				'error' => 'curl_init failed',
+			);
+		}
+
+		curl_setopt_array(
+			$curl_handle,
+			array(
+				CURLOPT_CUSTOMREQUEST  => 'PUT',
+				CURLOPT_POSTFIELDS     => $post_fields,
+				CURLOPT_HTTPHEADER     => array(
+					'Authorization: Bearer ' . $secret,
+				),
+				CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
+				CURLOPT_RETURNTRANSFER => true,
+				CURLOPT_TIMEOUT        => 60,
+			)
+		);
+
+		$response_body = curl_exec( $curl_handle );
+		$curl_error    = curl_error( $curl_handle );
+		$response_code = (int) curl_getinfo( $curl_handle, CURLINFO_HTTP_CODE );
+		unset( $curl_handle );
+
+		if ( false === $response_body ) {
+			return array(
+				'code'  => $response_code,
+				'body'  => '',
+				'error' => '' !== $curl_error ? $curl_error : 'curl_exec failed',
+			);
+		}
+
+		return array(
+			'code'  => $response_code,
+			'body'  => (string) $response_body,
+			'error' => null,
+		);
 	}
 
 	/**
@@ -299,6 +450,15 @@ class MediaSync {
 	}
 
 	/**
+	 * Whether the PHP cURL extension can upload media (curl_init + CURLFile).
+	 *
+	 * @return bool
+	 */
+	public static function is_curl_available(): bool {
+		return function_exists( 'curl_init' ) && class_exists( 'CURLFile', false );
+	}
+
+	/**
 	 * Map a WordPress attachment to Convex multipart text fields.
 	 *
 	 * @param \WP_Post $attachment Attachment post object.
@@ -312,49 +472,6 @@ class MediaSync {
 			'title'       => (string) $attachment->post_title,
 			'caption'     => (string) $attachment->post_excerpt,
 			'description' => (string) $attachment->post_content,
-		);
-	}
-
-	/**
-	 * Build a multipart/form-data body for Convex media upload.
-	 *
-	 * @param array<string, string> $fields      Text form fields (alt, title, etc.).
-	 * @param string                $file_path   Absolute path to the file on disk.
-	 * @param string                $mime_type   File MIME type.
-	 * @param string                $filename    Filename sent in Content-Disposition.
-	 * @return array{body: string, boundary: string}
-	 */
-	public function build_multipart_body(
-		array $fields,
-		string $file_path,
-		string $mime_type,
-		string $filename
-	): array {
-		$boundary    = '--------------------------' . wp_generate_password( 24, false, false );
-		$payload     = '';
-		$field_order = array( 'alt', 'title', 'caption', 'description' );
-
-		foreach ( $field_order as $name ) {
-			$value    = $fields[ $name ] ?? '';
-			$payload .= $this->build_multipart_field( $boundary, $name, $value );
-		}
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local attachment file read.
-		$file_contents = file_get_contents( $file_path );
-
-		if ( false === $file_contents ) {
-			$file_contents = '';
-		}
-
-		$payload .= '--' . $boundary . "\r\n";
-		$payload .= 'Content-Disposition: form-data; name="file"; filename="' . $this->escape_multipart_filename( $filename ) . "\"\r\n";
-		$payload .= 'Content-Type: ' . $mime_type . "\r\n\r\n";
-		$payload .= $file_contents . "\r\n";
-		$payload .= '--' . $boundary . "--\r\n";
-
-		return array(
-			'body'     => $payload,
-			'boundary' => $boundary,
 		);
 	}
 
@@ -406,27 +523,4 @@ class MediaSync {
 		);
 	}
 
-	/**
-	 * Append one multipart text field to the payload.
-	 *
-	 * @param string $boundary Field boundary token.
-	 * @param string $name     Field name.
-	 * @param string $value    Field value.
-	 * @return string
-	 */
-	private function build_multipart_field( string $boundary, string $name, string $value ): string {
-		return '--' . $boundary . "\r\n"
-			. 'Content-Disposition: form-data; name="' . $name . "\"\r\n\r\n"
-			. $value . "\r\n";
-	}
-
-	/**
-	 * Escape double quotes in multipart filenames.
-	 *
-	 * @param string $filename Raw filename.
-	 * @return string
-	 */
-	private function escape_multipart_filename( string $filename ): string {
-		return str_replace( '"', '\\"', $filename );
-	}
 }
