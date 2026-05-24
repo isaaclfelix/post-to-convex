@@ -75,7 +75,72 @@ class MediaSyncTest extends WP_UnitTestCase {
 	}
 
 	/**
-	 * PATCH body includes mediaId and all metadata strings (empty when unset).
+	 * Dimensions are read from attachment metadata.
+	 *
+	 * @return void
+	 */
+	public function test_get_attachment_dimensions_from_metadata(): void {
+		$attachment_id = self::factory()->attachment->create(
+			array(
+				'post_mime_type' => 'image/jpeg',
+			)
+		);
+
+		wp_update_attachment_metadata(
+			$attachment_id,
+			array(
+				'width'  => 1920,
+				'height' => 1080,
+				'file'   => '2024/01/test.jpg',
+			)
+		);
+
+		$sync = new MediaSync();
+		$this->assertSame(
+			array(
+				'width'  => 1920,
+				'height' => 1080,
+			),
+			$sync->get_attachment_dimensions( $attachment_id )
+		);
+	}
+
+	/**
+	 * Upload form fields include required width and height strings.
+	 *
+	 * @return void
+	 */
+	public function test_build_media_upload_form_fields_includes_dimensions(): void {
+		$attachment_id = self::factory()->attachment->create(
+			array(
+				'post_mime_type' => 'image/jpeg',
+				'post_title'     => 'Photo',
+			)
+		);
+
+		wp_update_attachment_metadata(
+			$attachment_id,
+			array(
+				'width'  => 800,
+				'height' => 600,
+				'file'   => '2024/01/photo.jpg',
+			)
+		);
+
+		$attachment = get_post( $attachment_id );
+		$this->assertInstanceOf( \WP_Post::class, $attachment );
+
+		$sync   = new MediaSync();
+		$fields = $sync->build_media_upload_form_fields( $attachment );
+
+		$this->assertIsArray( $fields );
+		$this->assertSame( '800', $fields['width'] );
+		$this->assertSame( '600', $fields['height'] );
+		$this->assertSame( 'Photo', $fields['title'] );
+	}
+
+	/**
+	 * PATCH body includes mediaId, metadata strings, and pixel dimensions.
 	 *
 	 * @return void
 	 */
@@ -86,6 +151,15 @@ class MediaSyncTest extends WP_UnitTestCase {
 				'post_title'     => '',
 				'post_excerpt'   => '',
 				'post_content'   => '',
+			)
+		);
+
+		wp_update_attachment_metadata(
+			$attachment_id,
+			array(
+				'width'  => 640,
+				'height' => 480,
+				'file'   => '2024/01/test.jpg',
 			)
 		);
 
@@ -102,11 +176,13 @@ class MediaSyncTest extends WP_UnitTestCase {
 				'title'       => '',
 				'caption'     => '',
 				'description' => '',
+				'width'       => 640,
+				'height'      => 480,
 			),
 			$body
 		);
 		$this->assertSame(
-			array( 'mediaId', 'alt', 'title', 'caption', 'description' ),
+			array( 'mediaId', 'alt', 'title', 'caption', 'description', 'width', 'height' ),
 			array_keys( $body )
 		);
 	}

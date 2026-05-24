@@ -44,8 +44,8 @@ Your Convex app should accept authenticated requests at:
 
 Media endpoint: `{CONVEX_CLOUD_URL}/api/postToConvex/v1/media`
 
-* **Upload** — `PUT` with `multipart/form-data` (`file` plus optional `alt`, `title`, `caption`, `description`). Allowed types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`. Response: `{ "mediaId": "..." }`. WordPress sends this request with **native PHP cURL** and `CURLFile`, not `wp_remote_request`.
-* **Update metadata** — `PATCH` with JSON `{ "mediaId", "alt", "title", "caption", "description" }` (all required strings; use `""` when empty). Only updates metadata on an existing row; requires `post_to_convex_media_id` in WordPress. Sent via `wp_remote_request`.
+* **Upload** — `PUT` with `multipart/form-data` (`file` plus optional `alt`, `title`, `caption`, `description`, and required `width` / `height` as decimal strings for positive pixel counts; Convex parses them as integers). Allowed types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`. Response: `{ "mediaId": "..." }`. WordPress sends this request with **native PHP cURL** and `CURLFile`, not `wp_remote_request`.
+* **Update metadata** — `PATCH` with JSON `{ "mediaId", "alt", "title", "caption", "description", "width", "height" }` (text fields required strings, use `""` when empty; `width` and `height` required positive integers). Only updates metadata on an existing row; requires `post_to_convex_media_id` in WordPress. Sent via `wp_remote_request`.
 * **Delete** — `DELETE` with JSON `{ "mediaId": "<id>" }` (via `wp_remote_request`).
 
 Set the environment variable `POST_TO_CONVEX_SECRET` in Convex to the same value you save in WordPress. The plugin sends it as a `Bearer` token on outbound requests.

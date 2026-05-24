@@ -245,8 +245,15 @@ class MediaSync {
 			return null;
 		}
 
-		$form_fields = $this->get_attachment_form_fields( $attachment );
-		$filename    = basename( $file_path );
+		$form_fields = $this->build_media_upload_form_fields( $attachment );
+
+		if ( null === $form_fields ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			error_log( 'Post to Convex: media upload skipped because image dimensions could not be determined.' );
+			return null;
+		}
+
+		$filename = basename( $file_path );
 
 		$this->syncing = true;
 
@@ -315,7 +322,7 @@ class MediaSync {
 			);
 		}
 
-		$result = $this->send_media_upload_via_curl(
+		return $this->send_media_upload_via_curl(
 			$request_url,
 			$secret,
 			$form_fields,
@@ -323,20 +330,6 @@ class MediaSync {
 			$mime_type,
 			$filename
 		);
-
-		// Retry with only the file field when Convex returns 500 (handler/parser edge cases).
-		if ( 500 === $result['code'] ) {
-			$result = $this->send_media_upload_via_curl(
-				$request_url,
-				$secret,
-				array(),
-				$file_path,
-				$mime_type,
-				$filename
-			);
-		}
-
-		return $result;
 	}
 
 	/**
@@ -363,7 +356,8 @@ class MediaSync {
 		);
 
 		foreach ( $form_fields as $name => $value ) {
-			if ( '' !== $value ) {
+			// width and height are required; optional text fields are omitted when empty.
+			if ( 'width' === $name || 'height' === $name || '' !== $value ) {
 				$post_fields[ $name ] = $value;
 			}
 		}
@@ -447,10 +441,14 @@ class MediaSync {
 
 		$this->syncing = true;
 
+		$body = $this->build_media_metadata_patch_body( $attachment, $media_id );
+
+		if ( null === $body ) {
+			return;
+		}
+
 		try {
-			$this->patch_media_metadata_in_convex(
-				$this->build_media_metadata_patch_body( $attachment, $media_id )
-			);
+			$this->patch_media_metadata_in_convex( $body );
 		} finally {
 			$this->syncing = false;
 		}
@@ -461,9 +459,15 @@ class MediaSync {
 	 *
 	 * @param \WP_Post $attachment Attachment post object.
 	 * @param string   $media_id   Convex media document id.
-	 * @return array{mediaId: string, alt: string, title: string, caption: string, description: string}
+	 * @return array{mediaId: string, alt: string, title: string, caption: string, description: string, width: int, height: int}|null
 	 */
-	public function build_media_metadata_patch_body( \WP_Post $attachment, string $media_id ): array {
+	public function build_media_metadata_patch_body( \WP_Post $attachment, string $media_id ): ?array {
+		$dimensions = $this->get_attachment_dimensions( (int) $attachment->ID );
+
+		if ( null === $dimensions ) {
+			return null;
+		}
+
 		$fields = $this->get_attachment_form_fields( $attachment );
 
 		return array(
@@ -472,13 +476,15 @@ class MediaSync {
 			'title'       => $fields['title'],
 			'caption'     => $fields['caption'],
 			'description' => $fields['description'],
+			'width'       => $dimensions['width'],
+			'height'      => $dimensions['height'],
 		);
 	}
 
 	/**
 	 * PATCH metadata on an existing Convex media row.
 	 *
-	 * @param array{mediaId: string, alt: string, title: string, caption: string, description: string} $body Request body.
+	 * @param array{mediaId: string, alt: string, title: string, caption: string, description: string, width: int, height: int} $body Request body.
 	 * @return void
 	 */
 	private function patch_media_metadata_in_convex( array $body ): void {
@@ -582,6 +588,78 @@ class MediaSync {
 	 */
 	public static function is_curl_available(): bool {
 		return function_exists( 'curl_init' ) && class_exists( 'CURLFile', false );
+	}
+
+	/**
+	 * Read positive pixel width and height for an image attachment.
+	 *
+	 * Uses attachment metadata when available; falls back to getimagesize() on the file.
+	 *
+	 * @param int $attachment_id WordPress attachment post ID.
+	 * @return array{width: int, height: int}|null
+	 */
+	public function get_attachment_dimensions( int $attachment_id ): ?array {
+		$metadata = wp_get_attachment_metadata( $attachment_id );
+
+		if ( is_array( $metadata ) && isset( $metadata['width'], $metadata['height'] ) ) {
+			$width  = (int) $metadata['width'];
+			$height = (int) $metadata['height'];
+
+			if ( $width > 0 && $height > 0 ) {
+				return array(
+					'width'  => $width,
+					'height' => $height,
+				);
+			}
+		}
+
+		$file_path = get_attached_file( $attachment_id );
+
+		if ( ! is_string( $file_path ) || '' === $file_path || ! is_readable( $file_path ) ) {
+			return null;
+		}
+
+		$image_size = @getimagesize( $file_path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+
+		if ( ! is_array( $image_size ) || ! isset( $image_size[0], $image_size[1] ) ) {
+			return null;
+		}
+
+		$width  = (int) $image_size[0];
+		$height = (int) $image_size[1];
+
+		if ( $width <= 0 || $height <= 0 ) {
+			return null;
+		}
+
+		return array(
+			'width'  => $width,
+			'height' => $height,
+		);
+	}
+
+	/**
+	 * Build multipart text fields for a Convex media PUT (metadata plus required dimensions).
+	 *
+	 * @param \WP_Post $attachment Attachment post object.
+	 * @return array<string, string>|null Null when dimensions cannot be determined.
+	 */
+	public function build_media_upload_form_fields( \WP_Post $attachment ): ?array {
+		$dimensions = $this->get_attachment_dimensions( (int) $attachment->ID );
+
+		if ( null === $dimensions ) {
+			return null;
+		}
+
+		$fields = $this->get_attachment_form_fields( $attachment );
+
+		return array_merge(
+			$fields,
+			array(
+				'width'  => (string) $dimensions['width'],
+				'height' => (string) $dimensions['height'],
+			)
+		);
 	}
 
 	/**
