@@ -531,7 +531,7 @@ class RestApi {
 		$post_id  = intval( $post->ID );
 		$taxonomy = $this->build_taxonomy_payload( $post_id );
 
-		return array_merge(
+		$fields = array_merge(
 			array(
 				'title'         => $post->post_title,
 				'slug'          => $post->post_name,
@@ -547,6 +547,18 @@ class RestApi {
 			),
 			$taxonomy
 		);
+
+		$thumbnail_id = (int) get_post_thumbnail_id( $post_id );
+
+		if ( $thumbnail_id > 0 ) {
+			$media_id = ( new MediaSync() )->ensure_attachment_synced( $thumbnail_id );
+
+			if ( is_string( $media_id ) && '' !== $media_id ) {
+				$fields['featuredImageMediaId'] = $media_id;
+			}
+		}
+
+		return $fields;
 	}
 
 	/**

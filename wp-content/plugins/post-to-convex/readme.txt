@@ -21,6 +21,7 @@ Post to Convex connects your WordPress site to a [Convex](https://www.convex.dev
 * **Encrypted secret storage** — The Convex secret is stored with AES-256-GCM; key material is derived from WordPress salts in `wp-config.php`, not from the database.
 * **REST API proxy** — Authenticated routes under `post-to-convex/v1` load post data from WordPress and forward it to your Convex HTTP API.
 * **Post meta** — After a successful create, the remote document id is saved in `post_to_convex_remote_id` and exposed to the REST API for the editor.
+* **Media sync** — Image attachments (JPEG, PNG, WebP, GIF) upload to Convex automatically from the media library or when set as a featured image. Deleting an attachment removes it from Convex. The Convex `mediaId` is stored in `post_to_convex_media_id` on the attachment. Post sync includes `featuredImageMediaId` when the post has a featured image.
 
 = Requirements =
 
@@ -37,6 +38,11 @@ Your Convex app should accept authenticated requests at:
 * **Create / update** — `POST` with a JSON body (title, slug, content, excerpt, type, status, dates, `originalId`, `authorId`, and on update `_id` from WordPress meta).
 * **Delete** — `DELETE` with JSON `{ "_id": "<remote id>" }`.
 
+Media endpoint: `{CONVEX_CLOUD_URL}/api/postToConvex/v1/media`
+
+* **Upload** — `PUT` with `multipart/form-data` (`file` plus optional `alt`, `title`, `caption`, `description`). Allowed types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`. Response: `{ "mediaId": "..." }`.
+* **Delete** — `DELETE` with JSON `{ "mediaId": "<id>" }`.
+
 Set the environment variable `POST_TO_CONVEX_SECRET` in Convex to the same value you save in WordPress. The plugin sends it as a `Bearer` token on outbound requests.
 
 = PHP components =
@@ -46,6 +52,8 @@ The plugin loads PHP classes via Composer PSR-4 autoloading (`PostToConvex` name
 * `PostToConvex\AdminSettings` — Options page, `post_to_convex_cloud_url` and `post_to_convex_secret` options.
 * `PostToConvex\SecretStore` — Encrypt and decrypt the shared secret (`encrypt`, `decrypt`, `get_plaintext_secret`).
 * `PostToConvex\PostMeta` — Registers `post_to_convex_remote_id` for REST-enabled post types.
+* `PostToConvex\AttachmentMeta` — Registers `post_to_convex_media_id` on attachments.
+* `PostToConvex\MediaSync` — Uploads and deletes media in Convex on attachment hooks.
 * `PostToConvex\RestApi` — Registers proxy routes and handlers.
 * `PostToConvex\Blocks` — Registers block metadata and block-editor assets (`build/editor.js` sidebar).
 
@@ -90,6 +98,10 @@ The existing encrypted secret is kept unchanged.
 = Where is the Convex document id stored? =
 
 In post meta key `post_to_convex_remote_id`, readable in the editor when you have permission to edit the post.
+
+= Where is the Convex media id stored? =
+
+On attachment posts, in meta key `post_to_convex_media_id`. Post sync sends `featuredImageMediaId` from that meta when the post has a featured image.
 
 == Changelog ==
 
