@@ -2,7 +2,7 @@
 /**
  * Plugin Name:     Post to Convex
  * Plugin URI:      http://beddev.lobodeguerra.com
- * Description:     A plugin to send data to a Convex powered backend
+ * Description:     Sync posts to Convex from the Gutenberg editor (not Classic Editor).
  * Author:          Isaac L. Félix
  * Author URI:      http://beddev.lobodeguerra.com
  * Text Domain:     post-to-convex

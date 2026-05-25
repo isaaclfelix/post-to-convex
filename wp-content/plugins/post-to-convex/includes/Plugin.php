@@ -34,7 +34,9 @@ class Plugin {
 	public static function boot(): void {
 		Blocks::init();
 		PostMeta::init();
+		AttachmentMeta::init();
 		TermMeta::init();
+		MediaSync::init();
 		RestApi::init();
 
 		if ( ! is_admin() ) {
@@ -43,5 +45,6 @@ class Plugin {
 
 		AdminSettings::init();
 		TaxonomyFields::init();
+		AttachmentFields::init();
 	}
 }

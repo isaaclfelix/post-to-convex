@@ -30,6 +30,7 @@ class Util {
 	 *
 	 * @param string $content The raw post_content to translate.
 	 * @return string A JSON-encoded array of translated blocks (`'[]'` when empty or on encode failure).
+	 * @throws BlockTranslationException When a registered handler cannot translate a block.
 	 */
 	public static function translate_blocks( string $content ): string {
 		$blocks     = parse_blocks( $content );

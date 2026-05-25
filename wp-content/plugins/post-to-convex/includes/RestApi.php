@@ -89,6 +89,173 @@ class RestApi {
 				),
 			)
 		);
+
+		register_rest_route(
+			self::ROUTE_NAMESPACE,
+			'/syncAttachment',
+			array(
+				'methods'             => 'PUT',
+				'callback'            => array( $this, 'handle_sync_attachment' ),
+				'permission_callback' => array( $this, 'can_edit_attachment' ),
+				'args'                => array(
+					'id' => array(
+						'required' => true,
+						'type'     => 'integer',
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::ROUTE_NAMESPACE,
+			'/removeAttachmentFromConvex',
+			array(
+				'methods'             => \WP_REST_Server::DELETABLE,
+				'callback'            => array( $this, 'handle_remove_attachment_from_convex' ),
+				'permission_callback' => array( $this, 'can_edit_attachment' ),
+				'args'                => array(
+					'id' => array(
+						'required' => true,
+						'type'     => 'integer',
+					),
+				),
+			)
+		);
+	}
+
+	/**
+	 * Whether the current user may sync or detach the given attachment.
+	 *
+	 * @param \WP_REST_Request $request Request object.
+	 * @return bool
+	 */
+	public function can_edit_attachment( \WP_REST_Request $request ): bool {
+		$attachment_id = (int) $request->get_param( 'id' );
+
+		if ( $attachment_id <= 0 ) {
+			$body = $request->get_json_params();
+
+			if ( is_array( $body ) ) {
+				$attachment_id = (int) ( $body['id'] ?? 0 );
+			}
+		}
+
+		if ( $attachment_id <= 0 ) {
+			return false;
+		}
+
+		if ( 'attachment' !== get_post_type( $attachment_id ) ) {
+			return false;
+		}
+
+		return current_user_can( 'edit_post', $attachment_id );
+	}
+
+	/**
+	 * Manually upload an attachment to Convex from the Media Library UI.
+	 *
+	 * @param \WP_REST_Request $request Request object.
+	 * @return \WP_REST_Response
+	 */
+	public function handle_sync_attachment( \WP_REST_Request $request ): \WP_REST_Response {
+		$request_error_message = __( 'Request error', 'post-to-convex' );
+		$body                  = $request->get_json_params();
+
+		if ( ! is_array( $body ) ) {
+			return new \WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'Request body must be a JSON object', 'post-to-convex' ),
+				),
+				400
+			);
+		}
+
+		$attachment_id = (int) ( $body['id'] ?? 0 );
+
+		if ( $attachment_id <= 0 ) {
+			return new \WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'Attachment not found', 'post-to-convex' ),
+				),
+				404
+			);
+		}
+
+		$result = ( new MediaSync() )->sync_attachment_to_convex( $attachment_id );
+
+		if ( ! $result['success'] || ! is_string( $result['media_id'] ) || '' === $result['media_id'] ) {
+			return new \WP_REST_Response(
+				array(
+					'message' => __( 'Failed to sync attachment with Convex', 'post-to-convex' ),
+					'error'   => $result['error'] ?? __( 'Unknown error', 'post-to-convex' ),
+				),
+				400
+			);
+		}
+
+		return new \WP_REST_Response(
+			array(
+				'message' => __( 'Attachment sent to Convex successfully.', 'post-to-convex' ),
+				'data'    => array(
+					'mediaId' => $result['media_id'],
+				),
+			),
+			200
+		);
+	}
+
+	/**
+	 * Remove an attachment from Convex without deleting the WordPress file.
+	 *
+	 * @param \WP_REST_Request $request Request object.
+	 * @return \WP_REST_Response
+	 */
+	public function handle_remove_attachment_from_convex( \WP_REST_Request $request ): \WP_REST_Response {
+		$request_error_message = __( 'Request error', 'post-to-convex' );
+		$body                  = $request->get_json_params();
+
+		if ( ! is_array( $body ) ) {
+			return new \WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'Request body must be a JSON object', 'post-to-convex' ),
+				),
+				400
+			);
+		}
+
+		$attachment_id = (int) ( $body['id'] ?? 0 );
+
+		if ( $attachment_id <= 0 ) {
+			return new \WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'Attachment not found', 'post-to-convex' ),
+				),
+				404
+			);
+		}
+
+		$result = ( new MediaSync() )->detach_attachment_from_convex( $attachment_id );
+
+		if ( ! $result['success'] ) {
+			return new \WP_REST_Response(
+				array(
+					'message' => __( 'Failed to remove attachment from Convex', 'post-to-convex' ),
+					'error'   => $result['error'] ?? __( 'Unknown error', 'post-to-convex' ),
+				),
+				400
+			);
+		}
+
+		return new \WP_REST_Response(
+			array(
+				'message' => __( 'Attachment removed from Convex successfully.', 'post-to-convex' ),
+			),
+			200
+		);
 	}
 
 	/**
@@ -167,6 +334,10 @@ class RestApi {
 		);
 
 		$convex_request_body = $this->build_convex_post_fields( $post );
+
+		if ( $convex_request_body instanceof \WP_REST_Response ) {
+			return $convex_request_body;
+		}
 
 		$convex_request = wp_remote_post(
 			sprintf( '%s/api/postToConvex/v1/posts', $api_url ),
@@ -318,9 +489,15 @@ class RestApi {
 			);
 		}
 
+		$post_fields = $this->build_convex_post_fields( $post );
+
+		if ( $post_fields instanceof \WP_REST_Response ) {
+			return $post_fields;
+		}
+
 		$convex_request_body = array_merge(
 			array( '_id' => $remote_id ),
-			$this->build_convex_post_fields( $post )
+			$post_fields
 		);
 
 		$convex_request = wp_remote_post(
@@ -525,17 +702,29 @@ class RestApi {
 	 * Build shared Convex post fields from a WordPress post row.
 	 *
 	 * @param object $post Post row from the database.
-	 * @return array<string, mixed>
+	 * @return array<string, mixed>|\WP_REST_Response Field map, or 400 when block translation fails.
 	 */
-	private function build_convex_post_fields( object $post ): array {
+	private function build_convex_post_fields( object $post ): array|\WP_REST_Response {
 		$post_id  = intval( $post->ID );
 		$taxonomy = $this->build_taxonomy_payload( $post_id );
 
-		return array_merge(
+		try {
+			$content = Util::translate_blocks( $post->post_content );
+		} catch ( BlockTranslationException $exception ) {
+			return new \WP_REST_Response(
+				array(
+					'message' => __( 'Request error', 'post-to-convex' ),
+					'error'   => $exception->getMessage(),
+				),
+				400
+			);
+		}
+
+		$fields = array_merge(
 			array(
 				'title'         => $post->post_title,
 				'slug'          => $post->post_name,
-				'content'       => Util::translate_blocks( $post->post_content ),
+				'content'       => $content,
 				'excerpt'       => $post->post_excerpt,
 				'type'          => $post->post_type,
 				'status'        => $post->post_status,
@@ -547,6 +736,18 @@ class RestApi {
 			),
 			$taxonomy
 		);
+
+		$thumbnail_id = (int) get_post_thumbnail_id( $post_id );
+
+		if ( $thumbnail_id > 0 ) {
+			$media_id = ( new MediaSync() )->ensure_attachment_synced( $thumbnail_id );
+
+			if ( is_string( $media_id ) && '' !== $media_id ) {
+				$fields['featuredImageMediaId'] = $media_id;
+			}
+		}
+
+		return $fields;
 	}
 
 	/**
