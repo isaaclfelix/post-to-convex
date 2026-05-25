@@ -85,6 +85,168 @@ class MediaSync {
 	}
 
 	/**
+	 * Manually upload an attachment to Convex (Media Library UI).
+	 *
+	 * @param int $attachment_id WordPress attachment post ID.
+	 * @return array{success: bool, media_id: string|null, error: string|null}
+	 */
+	public function sync_attachment_to_convex( int $attachment_id ): array {
+		if ( $attachment_id <= 0 ) {
+			return array(
+				'success'  => false,
+				'media_id' => null,
+				'error'    => __( 'Invalid attachment.', 'post-to-convex' ),
+			);
+		}
+
+		$block_reason = $this->get_sync_block_reason( $attachment_id );
+
+		if ( null !== $block_reason ) {
+			return array(
+				'success'  => false,
+				'media_id' => null,
+				'error'    => $block_reason,
+			);
+		}
+
+		$existing = get_post_meta( $attachment_id, AttachmentMeta::MEDIA_ID_META_KEY, true );
+
+		if ( is_string( $existing ) && '' !== $existing ) {
+			return array(
+				'success'  => true,
+				'media_id' => $existing,
+				'error'    => null,
+			);
+		}
+
+		$media_id = $this->upload_attachment( $attachment_id );
+
+		if ( ! is_string( $media_id ) || '' === $media_id ) {
+			return array(
+				'success'  => false,
+				'media_id' => null,
+				'error'    => __( 'Media upload to Convex failed. Check the PHP error log for details.', 'post-to-convex' ),
+			);
+		}
+
+		return array(
+			'success'  => true,
+			'media_id' => $media_id,
+			'error'    => null,
+		);
+	}
+
+	/**
+	 * Remove an attachment from Convex and clear local media id meta (keeps the WordPress file).
+	 *
+	 * @param int $attachment_id WordPress attachment post ID.
+	 * @return array{success: bool, error: string|null}
+	 */
+	public function detach_attachment_from_convex( int $attachment_id ): array {
+		if ( $attachment_id <= 0 ) {
+			return array(
+				'success' => false,
+				'error'   => __( 'Invalid attachment.', 'post-to-convex' ),
+			);
+		}
+
+		if ( ! current_user_can( 'edit_post', $attachment_id ) ) {
+			return array(
+				'success' => false,
+				'error'   => __( 'You do not have permission to edit this attachment.', 'post-to-convex' ),
+			);
+		}
+
+		$media_id = get_post_meta( $attachment_id, AttachmentMeta::MEDIA_ID_META_KEY, true );
+
+		if ( ! is_string( $media_id ) || '' === $media_id ) {
+			return array(
+				'success' => true,
+				'error'   => null,
+			);
+		}
+
+		if ( $this->syncing ) {
+			return array(
+				'success' => false,
+				'error'   => __( 'Another Convex sync is already in progress.', 'post-to-convex' ),
+			);
+		}
+
+		$this->syncing = true;
+
+		try {
+			if ( ! $this->delete_media_in_convex( $media_id ) ) {
+				return array(
+					'success' => false,
+					'error'   => __( 'Failed to remove media from Convex.', 'post-to-convex' ),
+				);
+			}
+
+			delete_post_meta( $attachment_id, AttachmentMeta::MEDIA_ID_META_KEY );
+
+			return array(
+				'success' => true,
+				'error'   => null,
+			);
+		} finally {
+			$this->syncing = false;
+		}
+	}
+
+	/**
+	 * Human-readable reason when an attachment cannot be synced, or null when allowed.
+	 *
+	 * @param int $attachment_id WordPress attachment post ID.
+	 * @return string|null
+	 */
+	public function get_sync_block_reason( int $attachment_id ): ?string {
+		if ( ! current_user_can( 'upload_files' ) && ! current_user_can( 'edit_post', $attachment_id ) ) {
+			return __( 'You do not have permission to sync this attachment.', 'post-to-convex' );
+		}
+
+		if ( 'attachment' !== get_post_type( $attachment_id ) ) {
+			return __( 'This item is not a media attachment.', 'post-to-convex' );
+		}
+
+		if ( ! wp_attachment_is_image( $attachment_id ) ) {
+			return __( 'Only image attachments can be synced to Convex.', 'post-to-convex' );
+		}
+
+		$mime_type = get_post_mime_type( $attachment_id );
+
+		if ( ! is_string( $mime_type ) || ! self::is_allowed_mime_type( $mime_type ) ) {
+			return __( 'This image type is not supported. Allowed types: JPEG, PNG, WebP, and GIF.', 'post-to-convex' );
+		}
+
+		if ( null === $this->get_api_config() ) {
+			return __( 'Convex Cloud URL or secret is not configured.', 'post-to-convex' );
+		}
+
+		if ( ! self::is_curl_available() ) {
+			return __( 'The PHP cURL extension (CURLFile) is required for media uploads.', 'post-to-convex' );
+		}
+
+		$attachment = get_post( $attachment_id );
+
+		if ( ! $attachment instanceof \WP_Post ) {
+			return __( 'Attachment could not be loaded.', 'post-to-convex' );
+		}
+
+		if ( null === $this->build_media_upload_form_fields( $attachment ) ) {
+			return __( 'Image dimensions could not be determined for upload.', 'post-to-convex' );
+		}
+
+		$file_path = get_attached_file( $attachment_id );
+
+		if ( ! is_string( $file_path ) || '' === $file_path || ! is_readable( $file_path ) ) {
+			return __( 'Attachment file is missing or not readable.', 'post-to-convex' );
+		}
+
+		return null;
+	}
+
+	/**
 	 * Upload a new attachment to Convex when it is added to the media library.
 	 *
 	 * Covers legacy Plupload/async-upload flows where attachment hooks run normally.
@@ -163,6 +325,16 @@ class MediaSync {
 	}
 
 	/**
+	 * Whether an attachment is eligible for Convex sync (no config/cURL checks).
+	 *
+	 * @param int $attachment_id WordPress attachment post ID.
+	 * @return bool
+	 */
+	public function is_sync_eligible_attachment( int $attachment_id ): bool {
+		return null === $this->get_sync_block_reason( $attachment_id );
+	}
+
+	/**
 	 * Upload featured image attachments that were not synced yet.
 	 *
 	 * @param int $post_id            Post ID.
@@ -211,7 +383,7 @@ class MediaSync {
 			return null;
 		}
 
-		if ( ! $this->can_sync_attachment( $attachment_id ) ) {
+		if ( null !== $this->get_sync_block_reason( $attachment_id ) ) {
 			return null;
 		}
 
@@ -528,13 +700,13 @@ class MediaSync {
 	 * DELETE a media row from Convex.
 	 *
 	 * @param string $media_id Convex media document id.
-	 * @return void
+	 * @return bool True when Convex returned HTTP 200.
 	 */
-	private function delete_media_in_convex( string $media_id ): void {
+	private function delete_media_in_convex( string $media_id ): bool {
 		$config = $this->get_api_config();
 
 		if ( null === $config ) {
-			return;
+			return false;
 		}
 
 		$convex_request = wp_remote_request(
@@ -556,7 +728,7 @@ class MediaSync {
 		if ( is_wp_error( $convex_request ) ) {
 			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 			error_log( 'Post to Convex: media delete failed: ' . $convex_request->get_error_message() );
-			return;
+			return false;
 		}
 
 		$response_code = wp_remote_retrieve_response_code( $convex_request );
@@ -568,7 +740,10 @@ class MediaSync {
 				: 'HTTP ' . (string) $response_code;
 			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 			error_log( 'Post to Convex: media delete failed: ' . $error_detail );
+			return false;
 		}
+
+		return true;
 	}
 
 	/**
@@ -686,21 +861,7 @@ class MediaSync {
 	 * @return bool
 	 */
 	private function can_sync_attachment( int $attachment_id ): bool {
-		if ( ! current_user_can( 'upload_files' ) && ! current_user_can( 'edit_post', $attachment_id ) ) {
-			return false;
-		}
-
-		if ( 'attachment' !== get_post_type( $attachment_id ) ) {
-			return false;
-		}
-
-		if ( ! wp_attachment_is_image( $attachment_id ) ) {
-			return false;
-		}
-
-		$mime_type = get_post_mime_type( $attachment_id );
-
-		return is_string( $mime_type ) && self::is_allowed_mime_type( $mime_type );
+		return null === $this->get_sync_block_reason( $attachment_id );
 	}
 
 	/**
@@ -726,5 +887,4 @@ class MediaSync {
 			'secret' => $api_secret,
 		);
 	}
-
 }

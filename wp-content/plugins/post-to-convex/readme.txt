@@ -21,7 +21,7 @@ Post to Convex connects your WordPress site to a [Convex](https://www.convex.dev
 * **Encrypted secret storage** — The Convex secret is stored with AES-256-GCM; key material is derived from WordPress salts in `wp-config.php`, not from the database.
 * **REST API proxy** — Authenticated routes under `post-to-convex/v1` load post data from WordPress and forward it to your Convex HTTP API.
 * **Post meta** — After a successful create, the remote document id is saved in `post_to_convex_remote_id` and exposed to the REST API for the editor.
-* **Media sync** — Image attachments (JPEG, PNG, WebP, GIF) upload to Convex automatically from the media library or when set as a featured image. Editing attachment metadata (alt, title, caption, description) in the media library PATCHes Convex when `post_to_convex_media_id` is already set. Deleting an attachment removes it from Convex. Post sync includes `featuredImageMediaId` and uploads an unsynced featured image via `ensure_attachment_synced`.
+* **Media sync** — Image attachments (JPEG, PNG, WebP, GIF) upload to Convex automatically from the media library or when set as a featured image. The Media Library and classic attachment edit screens provide **Post to Convex** / **Remove from Convex** buttons and show the Convex media ID (not in the block editor Insert Media modal). Editing attachment metadata PATCHes Convex when `post_to_convex_media_id` is already set. Deleting an attachment removes it from Convex. Post sync includes `featuredImageMediaId` and uploads an unsynced featured image via `ensure_attachment_synced`.
 
 = Requirements =
 
@@ -67,6 +67,7 @@ The plugin loads PHP classes via Composer PSR-4 autoloading (`PostToConvex` name
 * `PostToConvex\PostMeta` — Registers `post_to_convex_remote_id` for REST-enabled post types.
 * `PostToConvex\AttachmentMeta` — Registers `post_to_convex_media_id` on attachments.
 * `PostToConvex\MediaSync` — Uploads, PATCHes metadata, and deletes media in Convex on attachment hooks.
+* `PostToConvex\AttachmentFields` — Media Library UI for manual send/remove and Convex media ID display.
 * `PostToConvex\RestApi` — Registers proxy routes and handlers.
 * `PostToConvex\Blocks` — Registers block metadata and block-editor assets (`build/editor.js` sidebar).
 
@@ -87,6 +88,18 @@ Permission: callers must have `edit_posts`.
 * Route: `DELETE /removePostServer`
 * Body: `{ "id": <post id> }`
 * Deletes the remote document using `post_to_convex_remote_id`, then clears that meta key.
+
+**Sync attachment (Media Library)**
+
+* Route: `PUT /syncAttachment`
+* Body: `{ "id": <attachment id> }`
+* Uploads the attachment to Convex and stores `post_to_convex_media_id`.
+
+**Remove attachment from Convex (Media Library)**
+
+* Route: `DELETE /removeAttachmentFromConvex`
+* Body: `{ "id": <attachment id> }`
+* Deletes the remote media row and clears `post_to_convex_media_id`; the WordPress attachment file is kept.
 
 == Installation ==
 

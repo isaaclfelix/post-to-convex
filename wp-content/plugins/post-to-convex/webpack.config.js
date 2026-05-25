@@ -23,6 +23,11 @@ function withAdditionalEntries( config ) {
 			return {
 				...entries,
 				editor: path.resolve( process.cwd(), 'src', 'editor.tsx' ),
+				'media-admin': path.resolve(
+					process.cwd(),
+					'src',
+					'media-admin.tsx'
+				),
 			};
 		},
 	};

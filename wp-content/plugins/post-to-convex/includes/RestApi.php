@@ -89,6 +89,173 @@ class RestApi {
 				),
 			)
 		);
+
+		register_rest_route(
+			self::ROUTE_NAMESPACE,
+			'/syncAttachment',
+			array(
+				'methods'             => 'PUT',
+				'callback'            => array( $this, 'handle_sync_attachment' ),
+				'permission_callback' => array( $this, 'can_edit_attachment' ),
+				'args'                => array(
+					'id' => array(
+						'required' => true,
+						'type'     => 'integer',
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::ROUTE_NAMESPACE,
+			'/removeAttachmentFromConvex',
+			array(
+				'methods'             => \WP_REST_Server::DELETABLE,
+				'callback'            => array( $this, 'handle_remove_attachment_from_convex' ),
+				'permission_callback' => array( $this, 'can_edit_attachment' ),
+				'args'                => array(
+					'id' => array(
+						'required' => true,
+						'type'     => 'integer',
+					),
+				),
+			)
+		);
+	}
+
+	/**
+	 * Whether the current user may sync or detach the given attachment.
+	 *
+	 * @param \WP_REST_Request $request Request object.
+	 * @return bool
+	 */
+	public function can_edit_attachment( \WP_REST_Request $request ): bool {
+		$attachment_id = (int) $request->get_param( 'id' );
+
+		if ( $attachment_id <= 0 ) {
+			$body = $request->get_json_params();
+
+			if ( is_array( $body ) ) {
+				$attachment_id = (int) ( $body['id'] ?? 0 );
+			}
+		}
+
+		if ( $attachment_id <= 0 ) {
+			return false;
+		}
+
+		if ( 'attachment' !== get_post_type( $attachment_id ) ) {
+			return false;
+		}
+
+		return current_user_can( 'edit_post', $attachment_id );
+	}
+
+	/**
+	 * Manually upload an attachment to Convex from the Media Library UI.
+	 *
+	 * @param \WP_REST_Request $request Request object.
+	 * @return \WP_REST_Response
+	 */
+	public function handle_sync_attachment( \WP_REST_Request $request ): \WP_REST_Response {
+		$request_error_message = __( 'Request error', 'post-to-convex' );
+		$body                  = $request->get_json_params();
+
+		if ( ! is_array( $body ) ) {
+			return new \WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'Request body must be a JSON object', 'post-to-convex' ),
+				),
+				400
+			);
+		}
+
+		$attachment_id = (int) ( $body['id'] ?? 0 );
+
+		if ( $attachment_id <= 0 ) {
+			return new \WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'Attachment not found', 'post-to-convex' ),
+				),
+				404
+			);
+		}
+
+		$result = ( new MediaSync() )->sync_attachment_to_convex( $attachment_id );
+
+		if ( ! $result['success'] || ! is_string( $result['media_id'] ) || '' === $result['media_id'] ) {
+			return new \WP_REST_Response(
+				array(
+					'message' => __( 'Failed to sync attachment with Convex', 'post-to-convex' ),
+					'error'   => $result['error'] ?? __( 'Unknown error', 'post-to-convex' ),
+				),
+				400
+			);
+		}
+
+		return new \WP_REST_Response(
+			array(
+				'message' => __( 'Attachment sent to Convex successfully.', 'post-to-convex' ),
+				'data'    => array(
+					'mediaId' => $result['media_id'],
+				),
+			),
+			200
+		);
+	}
+
+	/**
+	 * Remove an attachment from Convex without deleting the WordPress file.
+	 *
+	 * @param \WP_REST_Request $request Request object.
+	 * @return \WP_REST_Response
+	 */
+	public function handle_remove_attachment_from_convex( \WP_REST_Request $request ): \WP_REST_Response {
+		$request_error_message = __( 'Request error', 'post-to-convex' );
+		$body                  = $request->get_json_params();
+
+		if ( ! is_array( $body ) ) {
+			return new \WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'Request body must be a JSON object', 'post-to-convex' ),
+				),
+				400
+			);
+		}
+
+		$attachment_id = (int) ( $body['id'] ?? 0 );
+
+		if ( $attachment_id <= 0 ) {
+			return new \WP_REST_Response(
+				array(
+					'message' => $request_error_message,
+					'error'   => __( 'Attachment not found', 'post-to-convex' ),
+				),
+				404
+			);
+		}
+
+		$result = ( new MediaSync() )->detach_attachment_from_convex( $attachment_id );
+
+		if ( ! $result['success'] ) {
+			return new \WP_REST_Response(
+				array(
+					'message' => __( 'Failed to remove attachment from Convex', 'post-to-convex' ),
+					'error'   => $result['error'] ?? __( 'Unknown error', 'post-to-convex' ),
+				),
+				400
+			);
+		}
+
+		return new \WP_REST_Response(
+			array(
+				'message' => __( 'Attachment removed from Convex successfully.', 'post-to-convex' ),
+			),
+			200
+		);
 	}
 
 	/**

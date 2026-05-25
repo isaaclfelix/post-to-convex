@@ -45,5 +45,6 @@ class Plugin {
 
 		AdminSettings::init();
 		TaxonomyFields::init();
+		AttachmentFields::init();
 	}
 }

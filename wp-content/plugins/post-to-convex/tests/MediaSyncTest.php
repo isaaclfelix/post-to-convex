@@ -9,7 +9,10 @@ declare( strict_types=1 );
 
 namespace PostToConvex\Tests;
 
+use PostToConvex\AdminSettings;
+use PostToConvex\AttachmentMeta;
 use PostToConvex\MediaSync;
+use PostToConvex\SecretStore;
 use WP_UnitTestCase;
 
 /**
@@ -194,5 +197,106 @@ class MediaSyncTest extends WP_UnitTestCase {
 	 */
 	public function test_is_curl_available_in_test_environment(): void {
 		$this->assertTrue( MediaSync::is_curl_available() );
+	}
+
+	/**
+	 * Unsupported MIME types return a block reason for manual sync.
+	 *
+	 * @return void
+	 */
+	public function test_get_sync_block_reason_rejects_pdf(): void {
+		$attachment_id = self::factory()->attachment->create(
+			array(
+				'post_mime_type' => 'application/pdf',
+			)
+		);
+
+		$sync = new MediaSync();
+
+		$this->assertNotNull( $sync->get_sync_block_reason( $attachment_id ) );
+		$this->assertFalse( $sync->is_sync_eligible_attachment( $attachment_id ) );
+	}
+
+	/**
+	 * Test detach_attachment_from_convex clears meta when Convex DELETE succeeds.
+	 *
+	 * @return void
+	 */
+	public function test_detach_attachment_from_convex_clears_meta_on_success(): void {
+		$encrypted = SecretStore::encrypt( 'test-secret' );
+		$this->assertNotSame( '', $encrypted, 'SecretStore encryption must work in PHPUnit.' );
+
+		update_option( AdminSettings::OPTION_URL, 'https://example.convex.cloud' );
+		update_option( AdminSettings::OPTION_SECRET, $encrypted );
+
+		$admin_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		wp_set_current_user( $admin_id );
+
+		$attachment_id = self::factory()->attachment->create(
+			array(
+				'post_mime_type' => 'image/jpeg',
+			)
+		);
+
+		update_post_meta( $attachment_id, AttachmentMeta::MEDIA_ID_META_KEY, 'mediaToDelete' );
+
+		add_filter(
+			'pre_http_request',
+			static function ( $pre, $args, $url ) {
+				unset( $pre, $args );
+
+				if ( ! is_string( $url ) || ! str_contains( $url, 'example.convex.cloud' ) ) {
+					return false;
+				}
+
+				return array(
+					'response' => array( 'code' => 200 ),
+					'body'     => wp_json_encode( array( 'mediaId' => 'mediaToDelete' ) ),
+				);
+			},
+			10,
+			3
+		);
+
+		$sync   = new MediaSync();
+		$result = $sync->detach_attachment_from_convex( $attachment_id );
+
+		$this->assertTrue( $result['success'], $result['error'] ?? '' );
+		$this->assertSame(
+			'',
+			get_post_meta( $attachment_id, AttachmentMeta::MEDIA_ID_META_KEY, true )
+		);
+	}
+
+	/**
+	 * Test sync_attachment_to_convex fails without calling HTTP for unsupported types.
+	 *
+	 * @return void
+	 */
+	public function test_sync_attachment_to_convex_fails_for_pdf(): void {
+		$http_called = false;
+
+		add_filter(
+			'pre_http_request',
+			static function () use ( &$http_called ) {
+				$http_called = true;
+
+				return false;
+			}
+		);
+
+		$attachment_id = self::factory()->attachment->create(
+			array(
+				'post_mime_type' => 'application/pdf',
+			)
+		);
+
+		$sync   = new MediaSync();
+		$result = $sync->sync_attachment_to_convex( $attachment_id );
+
+		$this->assertFalse( $result['success'] );
+		$this->assertNull( $result['media_id'] );
+		$this->assertIsString( $result['error'] );
+		$this->assertFalse( $http_called );
 	}
 }
