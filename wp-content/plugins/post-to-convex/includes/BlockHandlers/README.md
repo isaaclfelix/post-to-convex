@@ -280,6 +280,40 @@ Per-field rules worth knowing:
     -   **`nested`**: optional structural subtree (`ordered`, `reversed`, `start`, `type`, `items`) when the list-item contains a nested `core/list` in `innerBlocks`.
 -   **Colors / typography / spacing**: identical shape to heading and paragraph — the React consumer can reuse the same style helpers.
 
+## How `ImageHandler` differs
+
+`ImageHandler` extends `AbstractBlockHandler` and depends on `MediaSync` to ensure each block’s attachment is synced before translation. It always emits the full image AST (alignment, sizing, lightbox, link, border, duotone, spacing, etc.); the headless renderer may ignore fields it does not render yet.
+
+| Block source                | `attrs.id` | Behavior on post sync                                   |
+| --------------------------- | ---------- | ------------------------------------------------------- |
+| Upload / Media Library pick | present    | `ensure_attachment_synced(id)` → AST includes `mediaId` |
+| Insert from URL             | absent     | **Fail** — `BlockTranslationException`                  |
+
+```php
+return array(
+    'blockName'   => 'core/image',
+    'mediaId'     => /* from MediaSync */,
+    'alt'         => /* attrs.alt or '' */,
+    'caption'     => /* figcaption inline AST or [] */,
+    'align'       => $this->nullable_string( $attrs['align'] ?? null ),
+    'className'   => $this->nullable_string( $attrs['className'] ?? null ),
+    'sizeSlug'    => $this->nullable_string( $attrs['sizeSlug'] ?? null ),
+    'width'       => $this->nullable_string( $attrs['width'] ?? null ),
+    'height'      => $this->nullable_string( $attrs['height'] ?? null ),
+    'aspectRatio' => $this->nullable_string( $attrs['aspectRatio'] ?? null ),
+    'scale'       => $this->nullable_string( $attrs['scale'] ?? null ),
+    'lightbox'    => /* { enabled: bool } or null */,
+    'link'        => /* { destination, url } */,
+    'colors'      => /* text, background, link, border, duotone */,
+    'spacing'     => $this->build_spacing( $style ),
+    'border'      => /* width, radius, color from style.border */,
+);
+```
+
+-   **Caption**: parsed from `<figcaption class="wp-element-caption">` in `innerHTML` via `InlineTreeParser::parse_node()`.
+-   **Colors**: extends the shared map with `border` (`attrs.borderColor`) and `duotone` (`attrs.style.color.duotone` preset token).
+-   **Tests**: index-driven assertions against [`tests/data/sample-image-block-variants.html`](../../tests/data/sample-image-block-variants.html) in `ImageHandlerTest` (stub `MediaSync`, fake `PresetResolver`).
+
 ## Adding a new block handler
 
 1. **Create the handler** under this directory. Extend `AbstractBlockHandler` so you inherit the shared color / typography / spacing builders and the `InlineTreeParser` + `PresetResolver` plumbing — your subclass only owns its block-specific fields. Leaf blocks (heading, paragraph) emit a top-level `content` AST; container blocks like `core/list` walk `innerBlocks` instead:
@@ -336,7 +370,8 @@ Tests live in `[wp-content/plugins/post-to-convex/tests/](../../tests/)` and use
 -   `**InlineTreeParserTest**` drives the parser with hand-written snippets, including a `@dataProvider` that feeds all six bold/italic/link source orderings and asserts they collapse to the same canonical AST.
 -   `**PresetResolverTest**` exercises the real WP integration via a `wp_theme_json_data_theme` filter, using `ptc-test-*` slugs that intentionally do not collide with WP core defaults so the test assertions are unambiguous.
 -   `**HeadingHandlerTest**`, `**ParagraphHandlerTest**`, and `**ListHandlerTest**` drive their respective handlers through every variant in `[tests/data/sample-heading-block-variants.html](../../tests/data/sample-heading-block-variants.html)`, `[tests/data/sample-paragraph-block-variants.html](../../tests/data/sample-paragraph-block-variants.html)`, and `[tests/data/sample-list-block-variants.html](../../tests/data/sample-list-block-variants.html)`. None uses a real `PresetResolver` — each injects an anonymous subclass that returns canned values for the sample's slugs. This decouples the handler tests from WordPress' theme.json merge behavior, which is exercised separately in `PresetResolverTest`. Each suite also includes an integration guard (`test_inline_content_canonicalization_collapses_all_orderings`) that feeds the six link/strong/em author orderings through `Handler::translate()` and asserts they all collapse to the canonical `link > strong > em > text` tree.
--   `**BlockTranslatorTest**` uses an in-test anonymous class implementing `BlockHandlerInterface` to verify registry dispatch, `innerBlocks` recursion, and the end-to-end `Util::translate_blocks()` JSON round-trip. It also asserts the `with_defaults()` factory registers `core/heading`, `core/paragraph`, and `core/list`.
+-   `**ImageHandlerTest**` drives every variant in [`tests/data/sample-image-block-variants.html`](../../tests/data/sample-image-block-variants.html) with a stub `MediaSync` and fake `PresetResolver`.
+-   `**BlockTranslatorTest**` uses an in-test anonymous class implementing `BlockHandlerInterface` to verify registry dispatch, `innerBlocks` recursion, and the end-to-end `Util::translate_blocks()` JSON round-trip. It also asserts the `with_defaults()` factory registers `core/heading`, `core/paragraph`, `core/list`, and `core/image`.
 -   `**tests/Support/BlockHandlerTestSupport**` is a trait shared by the handler test suites. It provides `make_fake_resolver(array $palette, array $font_sizes, array $spacing)` (the stubbed `PresetResolver` factory) and `load_blocks_of_type(string $sample_filename, string $block_name)` (the sample-loader that flattens blocks by name — for lists, only **top-level** `core/list` blocks are indexed because nested lists inside list-items are not descended into after a name match). New handler tests should reuse this trait so each test class stays focused on its handler's assertions.
 
 The fake-resolver pattern is the recommended approach for any handler whose output depends on preset resolution. It keeps unit-test concerns separate (translator logic vs. theme.json plumbing) and avoids flakiness from whichever theme the test environment happens to load.

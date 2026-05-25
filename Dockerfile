@@ -23,6 +23,7 @@ RUN set -eux; \
 RUN pecl install xdebug \
     && docker-php-ext-enable xdebug
 
+COPY docker/php/conf.d/uploads.ini /usr/local/etc/php/conf.d/10-uploads.ini
 COPY docker/php/conf.d/xdebug.ini /usr/local/etc/php/conf.d/99-xdebug-settings.ini
 
 # Non-root cannot bind to port 80; move Apache to 8080 and allow www-data to own runtime dirs.

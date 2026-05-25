@@ -9,6 +9,8 @@ declare( strict_types=1 );
 
 namespace PostToConvex\BlockHandlers;
 
+use PostToConvex\MediaSync;
+
 /**
  * Security check.
  */
@@ -50,6 +52,10 @@ class BlockTranslator {
 		$instance->register(
 			'core/list',
 			new ListHandler( new InlineTreeParser(), new PresetResolver() )
+		);
+		$instance->register(
+			'core/image',
+			new ImageHandler( new InlineTreeParser(), new PresetResolver(), new MediaSync() )
 		);
 
 		return $instance;

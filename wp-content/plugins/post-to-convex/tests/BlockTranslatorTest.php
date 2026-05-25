@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace PostToConvex\Tests;
 
+use PostToConvex\AttachmentMeta;
 use PostToConvex\BlockHandlers\BlockHandlerInterface;
 use WP_UnitTestCase;
 use PostToConvex\BlockHandlers\BlockTranslator;
@@ -237,6 +238,44 @@ class BlockTranslatorTest extends WP_UnitTestCase {
 			),
 			$result[0]['items'][0]['content']
 		);
+	}
+
+	/**
+	 * The default registry also handles `core/image` out of the box.
+	 *
+	 * @return void
+	 */
+	public function test_with_defaults_registers_image(): void {
+		$attachment_id = self::factory()->attachment->create(
+			array(
+				'post_mime_type' => 'image/jpeg',
+				'post_title'     => 'Test image',
+			)
+		);
+
+		update_post_meta( $attachment_id, AttachmentMeta::MEDIA_ID_META_KEY, 'translator-test-media-id' );
+
+		$translator = BlockTranslator::with_defaults();
+
+		$result = $translator->translate(
+			array(
+				array(
+					'blockName' => 'core/image',
+					'attrs'     => array(
+						'id'              => $attachment_id,
+						'linkDestination' => 'none',
+					),
+					'innerHTML' => sprintf(
+						'<figure class="wp-block-image"><img alt="" class="wp-image-%d"/></figure>',
+						$attachment_id
+					),
+				),
+			)
+		);
+
+		$this->assertCount( 1, $result );
+		$this->assertSame( 'core/image', $result[0]['blockName'] );
+		$this->assertSame( 'translator-test-media-id', $result[0]['mediaId'] );
 	}
 
 	/**

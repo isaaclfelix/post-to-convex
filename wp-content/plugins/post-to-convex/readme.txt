@@ -21,7 +21,7 @@ Post to Convex connects your WordPress site to a [Convex](https://www.convex.dev
 * **Encrypted secret storage** — The Convex secret is stored with AES-256-GCM; key material is derived from WordPress salts in `wp-config.php`, not from the database.
 * **REST API proxy** — Authenticated routes under `post-to-convex/v1` load post data from WordPress and forward it to your Convex HTTP API.
 * **Post meta** — After a successful create, the remote document id is saved in `post_to_convex_remote_id` and exposed to the REST API for the editor.
-* **Media sync** — Image attachments (JPEG, PNG, WebP, GIF) upload to Convex automatically from the media library or when set as a featured image. The Media Library and classic attachment edit screens provide **Post to Convex** / **Remove from Convex** buttons and show the Convex media ID (not in the block editor Insert Media modal). Editing attachment metadata (title, caption, alt text, etc.) PATCHes Convex when `post_to_convex_media_id` is already set. **Image edits that replace the file** (for example cropping in the media modal) are not synced automatically; use **Post to Convex** again after editing if Convex should match the new file. Deleting an attachment removes it from Convex. Post sync includes `featuredImageMediaId` and uploads an unsynced featured image via `ensure_attachment_synced`.
+* **Media sync** — Image attachments (JPEG, PNG, WebP, GIF) upload to Convex automatically from the media library or when set as a featured image. The Media Library and classic attachment edit screens provide **Post to Convex** / **Remove from Convex** buttons and show the Convex media ID (not in the block editor Insert Media modal). Editing attachment metadata (title, caption, alt text, etc.) PATCHes Convex when `post_to_convex_media_id` is already set. **Image edits that replace the file** (for example cropping in the media modal) are not synced automatically; use **Post to Convex** again after editing if Convex should match the new file. Deleting an attachment removes it from Convex. Post sync includes `featuredImageMediaId` and uploads an unsynced featured image via `ensure_attachment_synced`. Inline `core/image` blocks in post content are translated to Convex `mediaId` in the content AST when the block uses a Media Library attachment id (`attrs.id`).
 
 = Requirements =
 
@@ -115,7 +115,7 @@ Permission: callers must have `edit_posts`.
 
 = Does this work with the Classic Editor? =
 
-No. Post sync is built for the **Gutenberg block editor** only. The “Post to Convex” panel is registered as a block-editor plugin sidebar (`build/editor.js`), and exported `content` is produced by translating Gutenberg blocks (heading, paragraph, list, and nested blocks)—not Classic Editor HTML. Use the block editor for posts you intend to sync, or install a plugin that disables the block editor only if you accept that this workflow will not apply.
+No. Post sync is built for the **Gutenberg block editor** only. The “Post to Convex” panel is registered as a block-editor plugin sidebar (`build/editor.js`), and exported `content` is produced by translating Gutenberg blocks (heading, paragraph, list, image, and nested blocks)—not Classic Editor HTML. Use the block editor for posts you intend to sync, or install a plugin that disables the block editor only if you accept that this workflow will not apply.
 
 Category and tag sync (admin taxonomy screens) and automatic media upload (media library) do not depend on which post editor you use.
 
@@ -134,6 +134,10 @@ In post meta key `post_to_convex_remote_id`, readable in the editor when you hav
 = Where is the Convex media id stored? =
 
 On attachment posts, in meta key `post_to_convex_media_id`. Post sync sends `featuredImageMediaId` from that meta when the post has a featured image, and uploads the featured image first when the meta is missing. Editing attachment metadata alone does not upload pre-existing library images; only uploads, featured-image hooks, or post sync create Convex rows.
+
+= Can I use Insert from URL in the image block? =
+
+Not for post sync at this time. The image block must reference a WordPress Media Library attachment (`attrs.id`). Blocks created with **Insert from URL** (URL only, no attachment id) cause post sync to fail with an error. Upload the image or pick it from the Media Library instead. A future Convex-side flow may ingest remote URLs without rewriting WordPress post content.
 
 = Does cropping or other image editing sync to Convex automatically? =
 

@@ -335,6 +335,10 @@ class RestApi {
 
 		$convex_request_body = $this->build_convex_post_fields( $post );
 
+		if ( $convex_request_body instanceof \WP_REST_Response ) {
+			return $convex_request_body;
+		}
+
 		$convex_request = wp_remote_post(
 			sprintf( '%s/api/postToConvex/v1/posts', $api_url ),
 			array(
@@ -485,9 +489,15 @@ class RestApi {
 			);
 		}
 
+		$post_fields = $this->build_convex_post_fields( $post );
+
+		if ( $post_fields instanceof \WP_REST_Response ) {
+			return $post_fields;
+		}
+
 		$convex_request_body = array_merge(
 			array( '_id' => $remote_id ),
-			$this->build_convex_post_fields( $post )
+			$post_fields
 		);
 
 		$convex_request = wp_remote_post(
@@ -692,17 +702,29 @@ class RestApi {
 	 * Build shared Convex post fields from a WordPress post row.
 	 *
 	 * @param object $post Post row from the database.
-	 * @return array<string, mixed>
+	 * @return array<string, mixed>|\WP_REST_Response Field map, or 400 when block translation fails.
 	 */
-	private function build_convex_post_fields( object $post ): array {
+	private function build_convex_post_fields( object $post ): array|\WP_REST_Response {
 		$post_id  = intval( $post->ID );
 		$taxonomy = $this->build_taxonomy_payload( $post_id );
+
+		try {
+			$content = Util::translate_blocks( $post->post_content );
+		} catch ( BlockTranslationException $exception ) {
+			return new \WP_REST_Response(
+				array(
+					'message' => __( 'Request error', 'post-to-convex' ),
+					'error'   => $exception->getMessage(),
+				),
+				400
+			);
+		}
 
 		$fields = array_merge(
 			array(
 				'title'         => $post->post_title,
 				'slug'          => $post->post_name,
-				'content'       => Util::translate_blocks( $post->post_content ),
+				'content'       => $content,
 				'excerpt'       => $post->post_excerpt,
 				'type'          => $post->post_type,
 				'status'        => $post->post_status,

@@ -256,7 +256,7 @@ Xdebug runs in the **WordPress container** (PHP 8.2), not on Windows PHP. The ID
 
 5. Set breakpoints under `wp-content/plugins/post-to-convex/`. Paths map `/var/www/html` ↔ workspace root.
 
-Settings are baked into the image via `docker/php/conf.d/xdebug.ini` (`COPY` in the `Dockerfile`, `start_with_request=trigger`).
+PHP settings are baked into the image via `docker/php/conf.d/` (`COPY` in the `Dockerfile`): `uploads.ini` sets a 20MB media upload limit; `xdebug.ini` enables step debugging (`start_with_request=trigger`). After changing either file, rebuild with `docker compose up -d --build`.
 
 ## Running unit tests
 
