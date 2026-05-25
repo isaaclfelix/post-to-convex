@@ -21,7 +21,7 @@ Post to Convex connects your WordPress site to a [Convex](https://www.convex.dev
 * **Encrypted secret storage** — The Convex secret is stored with AES-256-GCM; key material is derived from WordPress salts in `wp-config.php`, not from the database.
 * **REST API proxy** — Authenticated routes under `post-to-convex/v1` load post data from WordPress and forward it to your Convex HTTP API.
 * **Post meta** — After a successful create, the remote document id is saved in `post_to_convex_remote_id` and exposed to the REST API for the editor.
-* **Media sync** — Image attachments (JPEG, PNG, WebP, GIF) upload to Convex automatically from the media library or when set as a featured image. The Media Library and classic attachment edit screens provide **Post to Convex** / **Remove from Convex** buttons and show the Convex media ID (not in the block editor Insert Media modal). Editing attachment metadata PATCHes Convex when `post_to_convex_media_id` is already set. Deleting an attachment removes it from Convex. Post sync includes `featuredImageMediaId` and uploads an unsynced featured image via `ensure_attachment_synced`.
+* **Media sync** — Image attachments (JPEG, PNG, WebP, GIF) upload to Convex automatically from the media library or when set as a featured image. The Media Library and classic attachment edit screens provide **Post to Convex** / **Remove from Convex** buttons and show the Convex media ID (not in the block editor Insert Media modal). Editing attachment metadata (title, caption, alt text, etc.) PATCHes Convex when `post_to_convex_media_id` is already set. **Image edits that replace the file** (for example cropping in the media modal) are not synced automatically; use **Post to Convex** again after editing if Convex should match the new file. Deleting an attachment removes it from Convex. Post sync includes `featuredImageMediaId` and uploads an unsynced featured image via `ensure_attachment_synced`.
 
 = Requirements =
 
@@ -134,6 +134,10 @@ In post meta key `post_to_convex_remote_id`, readable in the editor when you hav
 = Where is the Convex media id stored? =
 
 On attachment posts, in meta key `post_to_convex_media_id`. Post sync sends `featuredImageMediaId` from that meta when the post has a featured image, and uploads the featured image first when the meta is missing. Editing attachment metadata alone does not upload pre-existing library images; only uploads, featured-image hooks, or post sync create Convex rows.
+
+= Does cropping or other image editing sync to Convex automatically? =
+
+No, not at this time. When a user edits an image in WordPress (crop, rotate, scale, or similar tools that write a new file), the plugin does not automatically re-upload or replace the Convex media row. Metadata-only edits (alt text, title, caption) still PATCH Convex when the attachment already has `post_to_convex_media_id`. After changing the image file, use **Post to Convex** in the Media Library (or remove from Convex first if you need a clean replace) so Convex matches the current file.
 
 = Does the plugin work without the cURL extension? =
 

@@ -21,6 +21,10 @@ defined( 'ABSPATH' ) || exit;
  * wp_remote_request() is not used for multipart PUT uploads because buffering
  * large bodies through the HTTP API layer proved unreliable (HTTP/2 resets,
  * cURL error 18). Metadata PATCH and DELETE use wp_remote_request with JSON.
+ *
+ * Image file edits (crop, rotate, scale, etc.) are not synced automatically;
+ * only metadata fields are PATCHed on edit_attachment / REST attachment update.
+ * Re-upload after editing the file via sync_attachment_to_convex() (Media Library UI).
  */
 class MediaSync {
 
@@ -286,6 +290,8 @@ class MediaSync {
 	 *
 	 * REST updates are handled by handle_rest_after_insert_attachment to avoid
 	 * duplicate PATCH requests (edit_attachment also runs for REST saves).
+	 *
+	 * Does not re-upload when the image file changes (e.g. crop); metadata only.
 	 *
 	 * @param int $attachment_id WordPress attachment post ID.
 	 * @return void
